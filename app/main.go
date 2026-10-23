@@ -44,6 +44,8 @@ func main() {
 
 		if text == "exit" {
 			break
+		} else if text == "pwd" {
+			runPathCmd(text)
 		} else if strings.HasPrefix(text, "type ") && slices.Contains(commands, text[5:]) {
 			fmt.Printf("%s is a shell builtin\n", text[5:])
 		} else if strings.HasPrefix(text, "type ") {
