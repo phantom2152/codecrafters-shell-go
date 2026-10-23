@@ -12,7 +12,10 @@ func main() {
 	for {
 		fmt.Print("$ ")
 		text, _ := reader.ReadString('\n')
-		text = strings.ReplaceAll(text, "\n", "")
+		text = strings.NewReplacer("\n", "", " ", "").Replace(text)
+		if text == "exit" {
+			break
+		}
 		fmt.Printf("%s: command not found\n", text)
 	}
 }
