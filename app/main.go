@@ -30,7 +30,7 @@ func runPathCmd(cmdString string) {
 	if err != nil {
 		fmt.Printf("Error executing %s: %s\n", args[0], err)
 	}
-	fmt.Println(string(output))
+	fmt.Printf("%s", string(output))
 }
 
 func main() {
