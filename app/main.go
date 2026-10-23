@@ -19,13 +19,13 @@ func checkPathCmd(cmd string) {
 
 func runPathCmd(cmdString string) {
 	args := strings.Split(cmdString, " ")
-	path, err := exec.LookPath(args[0])
+	_, err := exec.LookPath(args[0])
 	if err != nil {
 		fmt.Printf("%s: command not found\n", args[0])
 		return
 	}
 
-	cmd := exec.Command(path, args[1:]...)
+	cmd := exec.Command(args[0], args[1:]...)
 	output, err := cmd.Output()
 	if err != nil {
 		fmt.Printf("Error executing %s: %s\n", args[0], err)
