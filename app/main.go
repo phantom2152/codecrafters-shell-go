@@ -10,7 +10,6 @@ import (
 )
 
 func checkPathCmd(cmd string) {
-	fmt.Println("Looking for", cmd)
 	if path, err := exec.LookPath(cmd); err == nil {
 		fmt.Printf("%s is %s\n", cmd, path)
 	} else {
