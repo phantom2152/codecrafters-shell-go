@@ -33,6 +33,12 @@ func runPathCmd(cmdString string) {
 	fmt.Printf("%s", string(output))
 }
 
+func runPwd() {
+	cwd, _ := os.Getwd()
+	fmt.Println(cwd)
+
+}
+
 func main() {
 	reader := bufio.NewReader(os.Stdin)
 	var commands = []string{"echo", "exit", "type", "pwd"}
@@ -45,7 +51,7 @@ func main() {
 		if text == "exit" {
 			break
 		} else if text == "pwd" {
-			runPathCmd("pwd")
+			runPwd()
 		} else if strings.HasPrefix(text, "type ") && slices.Contains(commands, text[5:]) {
 			fmt.Printf("%s is a shell builtin\n", text[5:])
 		} else if strings.HasPrefix(text, "type ") {
