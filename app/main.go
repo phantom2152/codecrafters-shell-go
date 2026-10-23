@@ -12,9 +12,16 @@ func main() {
 	for {
 		fmt.Print("$ ")
 		text, _ := reader.ReadString('\n')
-		text = strings.NewReplacer("\n", "", " ", "").Replace(text)
+		text = strings.ReplaceAll(text, "\n", "")
+		text = strings.TrimSpace(text)
+
 		if text == "exit" {
 			break
+		}
+
+		if strings.HasPrefix(text, "echo ") {
+			fmt.Printf("%s\n", text[5:])
+			continue
 		}
 		fmt.Printf("%s: command not found\n", text)
 	}
