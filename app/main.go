@@ -84,7 +84,7 @@ func handleArgs(argString string) []string{
 	for i:=0;i <len(argString);i++ {
 		ch:= argString[i];
 
-		if ch == '"'{
+		if ch == '"' && !isInsideSingleQuote{
 			isInsideDoubleQuote = !isInsideDoubleQuote
 			tokenStarted = true
 			continue
@@ -93,6 +93,13 @@ func handleArgs(argString string) []string{
 		if ch == '\'' && !isInsideDoubleQuote{
 			isInsideSingleQuote = !isInsideSingleQuote
 			tokenStarted = true
+			continue
+		}
+
+		if ch == '\\' && (!isInsideSingleQuote && !isInsideDoubleQuote) && i+1<len(argString){
+			tokenStarted = true
+			i++
+			toAppend.WriteByte(argString[i])
 			continue
 		}
 
