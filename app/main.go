@@ -12,6 +12,50 @@ import (
 	"strings"
 )
 
+type redirects struct {
+	stdout string
+	stderr string
+}
+
+func splitRedirects(args []string) ([]string, redirects) {
+	var r redirects
+	var rest []string
+
+	for i := 0; i < len(args); i++ {
+		if i+1 < len(args) {
+			switch args[i] {
+			case ">", "1>":
+				r.stdout = args[i+1]
+				i++
+				continue
+			case "2>":
+				r.stderr = args[i+1]
+				i++
+				continue
+			}
+		}
+		rest = append(rest, args[i])
+	}
+
+	return rest, r
+}
+
+func emit(content, file string, fallback *os.File) {
+	if file == "" {
+		fmt.Print(fallback, content)
+		return
+	}
+
+	if err := os.WriteFile(file, []byte(content), 0o644); err != nil {
+		fmt.Fprintf(os.Stderr, "Error while writing file: %s\n", err)
+	}
+}
+
+func finish(stdout, stderr string, r redirects) {
+	emit(stdout, r.stdout, os.Stdout)
+	emit(stderr, r.stderr, os.Stderr)
+}
+
 var shellBuiltIn = []string{"echo", "exit", "type", "pwd", "cd"}
 var redirectOperators = []string{">", "1>", "2>"}
 var processDir string
@@ -29,40 +73,32 @@ func changeDir(changePath string) error {
 	return err
 }
 
-func runSystemCmd(args []string) {
+func runSystemCmd(rawArgs []string) {
+
+	args, r := splitRedirects(rawArgs)
 	if len(args) == 0 {
 		return
 	}
 
 	cmdToRun := args[0]
-	args = args[1:]
 
-	_, err := exec.LookPath(cmdToRun)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%s: command not found\n", cmdToRun)
+	if _, err := exec.LookPath(cmdToRun); err != nil {
+		finish("", fmt.Sprintf("%s: command not found\n", cmdToRun), r)
 		return
 	}
 
-	toBeSliced := len(args)
-	if len(args) >= 2 && slices.Contains(redirectOperators, args[len(args)-2]) {
-		toBeSliced = len(args) - 2
-	}
-
-	var stdout,stderr bytes.Buffer
-	cmd := exec.Command(cmdToRun, args[:toBeSliced]...)
+	var stdout, stderr bytes.Buffer
+	cmd := exec.Command(cmdToRun, args[1:]...)
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	err = cmd.Run()
-	if err != nil {
+	if err := cmd.Run(); err != nil {
 		var exitErr *exec.ExitError
 		if !errors.As(err, &exitErr) {
 			stderr.WriteString(fmt.Sprintf("%s: %s\n", cmdToRun, err))
 		}
 	}
-	
-	redirects := args[toBeSliced:]
-	handleStdOut(stdout.String(), redirects)
-	handleStdErr(stderr.String(), redirects)
+
+	finish(stdout.String(), stderr.String(), r)
 }
 
 func handleInputString(argString string) []string {
@@ -121,107 +157,51 @@ func handleInputString(argString string) []string {
 	return args
 }
 
-func handleStdOut(content string, args []string) {
+func handleCd(rawArgs []string) {
+	args, r := splitRedirects(rawArgs)
 
-	if len(args) == 0 || (args[0] != ">" && args[0] != "1>") {
-		fmt.Print(content)
-		return
-	}
-
-	file, err := os.Create(args[1])
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error while creating file: %s\n", err)
-		return
-	}
-
-	defer file.Close()
-
-	_, err = file.WriteString(content)
-
-}
-
-func handleStdErr(content string, args []string) {
-	if len(args) == 0 || (args[0] != "2>") {
-		fmt.Fprint(os.Stderr, content)
-		return
-	}
-
-	file, err := os.Create(args[1])
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error while creating file: %s\n", err)
-		return
-	}
-
-	defer file.Close()
-
-	_, err = file.WriteString(content)
-}
-
-func handleCd(args []string) {
 	if len(args) == 0 {
 		fmt.Fprintf(os.Stderr, "No args provided.\n")
 		return
 	}
 
 	toDir := args[0]
-	toBeSliced := len(args)
-	if len(args) >= 2 && slices.Contains(redirectOperators, args[len(args)-2]) {
-		toBeSliced = len(args) - 2
-	}
-	err := changeDir(toDir)
-	if err != nil {
-		toPrint := fmt.Sprintf("cd: %s: No such file or directory\n", toDir)
-		handleStdErr(toPrint, args[toBeSliced:])
-	}
 
+	if err := changeDir(toDir); err != nil {
+		finish("", fmt.Sprintf("cd: %s: No such file or directory\n", toDir), r)
+		return
+	}
+	finish("", "", r)
 }
 
-func handleType(args []string) {
+func handleType(rawArgs []string) {
+	args, r := splitRedirects(rawArgs)
+
 	if len(args) == 0 {
 		fmt.Fprintf(os.Stderr, "No args provided.\n")
 		return
 	}
 
-	toBeSliced := len(args)
-	if len(args) >= 2 && slices.Contains(redirectOperators, args[len(args)-2]) {
-		toBeSliced = len(args) - 2
-	}
-
 	if slices.Contains(shellBuiltIn, args[0]) {
-		toPrint := fmt.Sprintf("%s is a shell builtin\n", args[0])
-		handleStdOut(toPrint, args[toBeSliced:])
+		finish(fmt.Sprintf("%s is a shell builtin\n", args[0]), "", r)
 		return
 	}
 
 	if path, err := exec.LookPath(args[0]); err == nil {
-		toPrint := fmt.Sprintf("%s is %s\n", args[0], path)
-		handleStdOut(toPrint, args[toBeSliced:])
+		finish(fmt.Sprintf("%s is %s\n", args[0], path), "", r)
 	} else {
-		toPrint := fmt.Sprintf("%s: not found\n", args[0])
-		handleStdErr(toPrint, args[toBeSliced:])
+		finish("", fmt.Sprintf("%s: not found\n", args[0]), r)
 	}
 }
 
-func handleEcho(args []string) {
-	if len(args) == 0 {
-		fmt.Fprintf(os.Stderr, "No args provided.\n")
-		return
-	}
-
-	toBeSliced := len(args)
-	if len(args) >= 2 && slices.Contains(redirectOperators, args[len(args)-2]) {
-		toBeSliced = len(args) - 2
-	}
-
-	toPrint := strings.Join(args[:toBeSliced], " ") + "\n"
-	handleStdOut(toPrint, args[toBeSliced:])
-	handleStdErr("", args[toBeSliced:])
+func handleEcho(rawArgs []string) {
+	args, r := splitRedirects(rawArgs)
+	finish(strings.Join(args, " ")+"\n", "", r)
 }
 
-func handlePwd(args []string) {
-	toPrint := fmt.Sprintf("%s\n", processDir)
-	handleStdOut(toPrint, args)
-	handleStdErr("", args)
+func handlePwd(rawArgs []string) {
+	_, r := splitRedirects(rawArgs)
+	finish(processDir+"\n", "", r)
 }
 
 func main() {
