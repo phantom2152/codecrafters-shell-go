@@ -12,9 +12,15 @@ import (
 	"strings"
 )
 
+type target struct {
+	file   string
+	append bool
+}
+
+
 type redirects struct {
-	stdout string
-	stderr string
+	stdout target
+	stderr target
 }
 
 func splitRedirects(args []string) ([]string, redirects) {
@@ -25,11 +31,19 @@ func splitRedirects(args []string) ([]string, redirects) {
 		if i+1 < len(args) {
 			switch args[i] {
 			case ">", "1>":
-				r.stdout = args[i+1]
+				r.stdout = target{args[i+1], false}
+				i++
+				continue
+			case ">>", "1>>":
+				r.stdout = target{args[i+1], true}
 				i++
 				continue
 			case "2>":
-				r.stderr = args[i+1]
+				r.stderr = target{args[i+1], false}
+				i++
+				continue
+			case "2>>":
+				r.stderr = target{args[i+1], true}
 				i++
 				continue
 			}
@@ -40,13 +54,24 @@ func splitRedirects(args []string) ([]string, redirects) {
 	return rest, r
 }
 
-func emit(content, file string, fallback *os.File) {
-	if file == "" {
+func emit(content string, t target, fallback *os.File) {
+	if t.file == "" {
 		fmt.Fprint(fallback, content)
 		return
 	}
 
-	if err := os.WriteFile(file, []byte(content), 0o644); err != nil {
+	flags := os.O_WRONLY | os.O_CREATE | os.O_TRUNC
+	if t.append {
+			flags = os.O_WRONLY | os.O_CREATE | os.O_APPEND
+	}
+
+	f, err := os.OpenFile(t.file, flags, 0o644)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error while opening file: %s\n", err)
+		return
+	}
+	defer f.Close()
+	if _, err := f.WriteString(content); err != nil {
 		fmt.Fprintf(os.Stderr, "Error while writing file: %s\n", err)
 	}
 }
