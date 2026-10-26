@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -38,6 +39,9 @@ func changeDir(changePath string) error {
 }
 
 func runSystemCmd(args []string) {
+	if len(args) == 0 {
+		return
+	}
 
 	cmdToRun := args[0]
 	args = args[1:]
@@ -49,16 +53,18 @@ func runSystemCmd(args []string) {
 	}
 
 	toBeSliced := len(args)
-
 	if len(args) >= 2 && (args[len(args)-2] == ">" || args[len(args)-2] == "1>") {
 		toBeSliced = len(args) - 2
 	}
 
 	cmd := exec.Command(cmdToRun, args[:toBeSliced]...)
+	cmd.Stderr = os.Stderr
 	output, err := cmd.Output()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error executing %s: %s\n", args[0], err)
-		return
+		var exitErr *exec.ExitError
+		if !errors.As(err, &exitErr) {
+			fmt.Fprintf(os.Stderr, "%s: %s\n", cmdToRun, err)
+		}
 	}
 
 	handleStdOut(string(output), args[toBeSliced:])
@@ -129,7 +135,7 @@ func handleStdOut(content string, args []string) {
 
 	file, err := os.Create(args[1])
 	if err != nil {
-		fmt.Fprintf(os.Stderr,"Error while creating file: %s\n",err)
+		fmt.Fprintf(os.Stderr, "Error while creating file: %s\n", err)
 		return
 	}
 
@@ -190,8 +196,8 @@ func handleEcho(args []string) {
 }
 
 func handlePwd(args []string) {
-	toPrint := fmt.Sprintf("%s\n",processDir)
-	handleStdOut(toPrint,args)
+	toPrint := fmt.Sprintf("%s\n", processDir)
+	handleStdOut(toPrint, args)
 }
 
 func main() {
@@ -202,7 +208,7 @@ mainLoop:
 	for {
 		fmt.Print("$ ")
 		text, _ := reader.ReadString('\n')
-		text = strings.TrimSuffix(text,"\n")
+		text = strings.TrimSuffix(text, "\n")
 		commandArgs := handleInputString(text)
 		if len(commandArgs) == 0 {
 			continue mainLoop
