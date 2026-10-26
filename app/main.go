@@ -27,12 +27,6 @@ type builtinCompleter struct {
 func (c *builtinCompleter) Do(line []rune, pos int) ([][]rune, int) {
 	prefix := string(line[:pos])
 
-	if prefix != c.lastPrefix {
-		c.lastPrefix = prefix
-		fmt.Print("\x07") // bell
-		return nil, 0
-	}
-
 	matches := NewSet[string]()
 	for _, name := range c.names {
 		if strings.HasPrefix(name, prefix) {
@@ -81,15 +75,17 @@ func (c *builtinCompleter) Do(line []rune, pos int) ([][]rune, int) {
 		return [][]rune{[]rune(names[0][len(prefix):] + " ")}, len(prefix)
 	}
 
+	if prefix != c.lastPrefix {
+		c.lastPrefix = prefix
+		fmt.Print("\x07") // bell
+		return nil, 0
+	}
+
+	
+	c.lastPrefix = ""
 	fmt.Print("\r\n" + strings.Join(names, "  ") + "\r\n")
 	fmt.Print("$ " + prefix)
 	return nil, 0
-
-	// candidates := make([][]rune, 0, len(names))
-	// for _, name := range names {
-	// 	candidates = append(candidates, []rune(name[len(prefix):]+" "))
-	// }
-	// return candidates, len(prefix)
 }
 
 type redirects struct {
