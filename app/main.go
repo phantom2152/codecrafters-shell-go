@@ -5,39 +5,50 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 )
 
-type PathHolder struct{
+type PathHolder struct {
 	CurrentPath string
 }
 
-func NewPH() (*PathHolder,error ){
+func NewPH() (*PathHolder, error) {
 	originalDir, err := os.Getwd()
 	if err != nil {
-			return &PathHolder{},fmt.Errorf("Error getting current directory: %w", err)
-		}
+		return &PathHolder{}, fmt.Errorf("Error getting current directory: %w", err)
+	}
 	return &PathHolder{CurrentPath: originalDir}, nil
 }
 
-func (p *PathHolder) getCWD() (string){
+func (p *PathHolder) getCWD() string {
 	return p.CurrentPath
 }
 
-func (p *PathHolder) changeDir(changePath string) (error){
+func (p *PathHolder) changeDir(changePath string) error {
+
+	if strings.HasPrefix(changePath, "~") {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return fmt.Errorf("Failed to get home directory: %w", err)
+		}
+
+		changePath = filepath.Join(home, changePath[1:])
+	}
+
 	err := os.Chdir(changePath)
 
 	if err != nil {
-			return fmt.Errorf("Failed to change directory: %w", err)
-		}
-		newDir, err := os.Getwd()
-		if err != nil {
-				return fmt.Errorf("Error getting current directory: %w", err)
-			}
-		p.CurrentPath = newDir
+		return fmt.Errorf("Failed to change directory: %w", err)
+	}
+	newDir, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("Error getting current directory: %w", err)
+	}
+	p.CurrentPath = newDir
 
-		return  err
+	return err
 }
 
 func checkPathCmd(cmd string) {
@@ -64,17 +75,11 @@ func runPathCmd(cmdString string) {
 	fmt.Printf("%s", string(output))
 }
 
-func runPwd() {
-	cwd, _ := os.Getwd()
-	fmt.Println(cwd)
-
-}
-
 func main() {
 	reader := bufio.NewReader(os.Stdin)
-	var commands = []string{"echo", "exit", "type", "pwd","cd"}
-	ph,_ := NewPH()
-	
+	var commands = []string{"echo", "exit", "type", "pwd", "cd"}
+	ph, _ := NewPH()
+
 	for {
 		fmt.Print("$ ")
 		text, _ := reader.ReadString('\n')
@@ -85,14 +90,14 @@ func main() {
 			break
 		} else if text == "pwd" {
 			fmt.Println(ph.getCWD())
-		
-		} else if strings.HasPrefix(text, "cd "){
+
+		} else if strings.HasPrefix(text, "cd ") {
 			toDir := text[3:]
 			err := ph.changeDir(toDir)
-			if (err != nil){
-				fmt.Printf("cd: %s: No such file or directory\n",toDir)
+			if err != nil {
+				fmt.Printf("cd: %s: No such file or directory\n", toDir)
 			}
-		}else if strings.HasPrefix(text, "type ") && slices.Contains(commands, text[5:]) {
+		} else if strings.HasPrefix(text, "type ") && slices.Contains(commands, text[5:]) {
 			fmt.Printf("%s is a shell builtin\n", text[5:])
 		} else if strings.HasPrefix(text, "type ") {
 			checkPathCmd(text[5:])
