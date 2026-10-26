@@ -75,6 +75,7 @@ func runPathCmd(args []string) {
 }
 
 func handleArgs(argString string) []string{
+	var escapeInsideDoubleQuotes = []byte{'"','\\','$','`','\n'};
 	var args []string
 	var toAppend strings.Builder
 	isInsideSingleQuote := false
@@ -83,6 +84,12 @@ func handleArgs(argString string) []string{
 	
 	for i:=0;i <len(argString);i++ {
 		ch:= argString[i];
+
+		if (isInsideDoubleQuote && ch == '\\' && i+1<len(argString) && slices.Contains(escapeInsideDoubleQuotes,argString[i+1])){
+			i++
+			toAppend.WriteByte(argString[i])
+			continue
+		}
 
 		if ch == '"' && !isInsideSingleQuote{
 			isInsideDoubleQuote = !isInsideDoubleQuote
