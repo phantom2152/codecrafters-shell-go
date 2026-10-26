@@ -25,26 +25,60 @@ type builtinCompleter struct {
 
 func (c builtinCompleter) Do(line []rune, pos int) ([][]rune, int) {
 	prefix := string(line[:pos])
-	var candidates [][]rune
-		for _, name := range c.names {
-			if strings.HasPrefix(name, prefix) {
-				// return only the part still missing, plus a trailing space
-				candidates = append(candidates, []rune(name[len(prefix):]+" "))
-			}
+	matches := NewSet[string]()
+
+	for _,name:= range c.names{
+		if strings.HasPrefix(name,prefix){
+			matches.Add(name)
 		}
-	
-		if len(candidates) == 0 {
+	}
+
+	for _, dir := range filepath.SplitList(os.Getenv("PATH")) {
+		if dir == "" {dir = "."}
+
+		entries, err := os.ReadDir(dir)
+		if err != nil { continue }
+
+		for _, entry := range entries {
+			name := entry.Name()
+			if !strings.HasPrefix(name, prefix) {
+				continue
+			}
+			
+			info, err := os.Stat(filepath.Join(dir, name))
+			if err != nil || info.IsDir() || info.Mode()&0o111 == 0 {
+							continue
+			}
+
+			matches.Add(name)
+		}
+	}
+
+	if len(matches) == 0 {
 			fmt.Print("\x07") // bell
 			return nil, 0
-		}
-	
-		return candidates, len(prefix)
+	}
+
+	names := make([]string, 0, len(matches))
+	for name := range matches { 
+		names = append(names, name)
+	}
+	slices.Sort(names)
+
+	candidates := make([][]rune, 0, len(names))
+	for _, name := range names {
+		candidates = append(candidates, []rune(name[len(prefix):]+" "))
+	}
+	return candidates, len(prefix)
 }
 
 type redirects struct {
 	stdout target
 	stderr target
 }
+
+var shellBuiltIn = []string{"echo", "exit", "type", "pwd", "cd"}
+var processDir string
 
 func splitRedirects(args []string) ([]string, redirects) {
 	var r redirects
@@ -103,10 +137,6 @@ func finish(stdout, stderr string, r redirects) {
 	emit(stdout, r.stdout, os.Stdout)
 	emit(stderr, r.stderr, os.Stderr)
 }
-
-var shellBuiltIn = []string{"echo", "exit", "type", "pwd", "cd"}
-var redirectOperators = []string{">", "1>", "2>"}
-var processDir string
 
 func changeDir(changePath string) error {
 	if strings.HasPrefix(changePath, "~") {
@@ -253,10 +283,7 @@ func handlePwd(rawArgs []string) {
 }
 
 func main() {
-	_ = readline.NewPrefixCompleter(
-		readline.PcItem("echo"),
-		readline.PcItem("exit"),
-	)
+
 	rl, err := readline.NewEx(&readline.Config{
 		Prompt:       "$ ",
 		AutoComplete: builtinCompleter{names: []string{"echo", "exit"}},
