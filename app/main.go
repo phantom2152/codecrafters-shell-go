@@ -42,7 +42,7 @@ func splitRedirects(args []string) ([]string, redirects) {
 
 func emit(content, file string, fallback *os.File) {
 	if file == "" {
-		fmt.Print(fallback, content)
+		fmt.Fprint(fallback, content)
 		return
 	}
 
@@ -94,7 +94,7 @@ func runSystemCmd(rawArgs []string) {
 	if err := cmd.Run(); err != nil {
 		var exitErr *exec.ExitError
 		if !errors.As(err, &exitErr) {
-			stderr.WriteString(fmt.Sprintf("%s: %s\n", cmdToRun, err))
+			fmt.Fprintf(os.Stderr,"%s: %s\n", cmdToRun, err)
 		}
 	}
 
