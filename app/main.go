@@ -19,6 +19,28 @@ type target struct {
 	append bool
 }
 
+type builtinCompleter struct {
+	names []string
+}
+
+func (c builtinCompleter) Do(line []rune, pos int) ([][]rune, int) {
+	prefix := string(line[:pos])
+	var candidates [][]rune
+		for _, name := range c.names {
+			if strings.HasPrefix(name, prefix) {
+				// return only the part still missing, plus a trailing space
+				candidates = append(candidates, []rune(name[len(prefix):]+" "))
+			}
+		}
+	
+		if len(candidates) == 0 {
+			fmt.Print("\x07") // bell
+			return nil, 0
+		}
+	
+		return candidates, len(prefix)
+}
+
 type redirects struct {
 	stdout target
 	stderr target
@@ -231,15 +253,14 @@ func handlePwd(rawArgs []string) {
 }
 
 func main() {
-	completer := readline.NewPrefixCompleter(
+	_ = readline.NewPrefixCompleter(
 		readline.PcItem("echo"),
 		readline.PcItem("exit"),
 	)
-	rl,err := readline.NewEx(
-		&readline.Config{
-			Prompt: "$ ",
-			AutoComplete: completer,
-		})
+	rl, err := readline.NewEx(&readline.Config{
+		Prompt:       "$ ",
+		AutoComplete: builtinCompleter{names: []string{"echo", "exit"}},
+	})
 	if err != nil {
 		panic(err)
 	}
