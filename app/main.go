@@ -59,20 +59,54 @@ func checkPathCmd(cmd string) {
 	}
 }
 
-func runPathCmd(cmdString string) {
-	args := strings.Split(cmdString, " ")
+func runPathCmd(args []string) {
 	_, err := exec.LookPath(args[0])
 	if err != nil {
 		fmt.Printf("%s: command not found\n", args[0])
 		return
 	}
 
+	fmt.Println(args)
 	cmd := exec.Command(args[0], args[1:]...)
 	output, err := cmd.Output()
 	if err != nil {
 		fmt.Printf("Error executing %s: %s\n", args[0], err)
 	}
 	fmt.Printf("%s", string(output))
+}
+
+func handleArgs(argString string) []string {
+	var args []string
+	var toAppend strings.Builder
+	isInsideQuote := false
+	tokenStarted := false
+
+	for i := 0; i < len(argString); i++ {
+		ch := argString[i]
+
+		if ch == '\'' {
+			isInsideQuote = !isInsideQuote
+			tokenStarted = true
+			continue
+		}
+
+		if ch == ' ' && !isInsideQuote {
+			if tokenStarted {
+				args = append(args, toAppend.String())
+				toAppend.Reset()
+				tokenStarted = false
+			}
+			continue
+		}
+
+		toAppend.WriteByte(ch)
+		tokenStarted = true
+	}
+
+	if tokenStarted {
+		args = append(args, toAppend.String())
+	}
+	return args
 }
 
 func main() {
@@ -92,19 +126,19 @@ func main() {
 			fmt.Println(ph.getCWD())
 
 		} else if strings.HasPrefix(text, "cd ") {
-			toDir := text[3:]
-			err := ph.changeDir(toDir)
+			toDir := handleArgs(text[3:])
+			err := ph.changeDir(toDir[0])
 			if err != nil {
 				fmt.Printf("cd: %s: No such file or directory\n", toDir)
 			}
 		} else if strings.HasPrefix(text, "type ") && slices.Contains(commands, text[5:]) {
 			fmt.Printf("%s is a shell builtin\n", text[5:])
 		} else if strings.HasPrefix(text, "type ") {
-			checkPathCmd(text[5:])
+			checkPathCmd(handleArgs(text[5:])[0])
 		} else if strings.HasPrefix(text, "echo ") {
-			fmt.Println(text[5:])
+			fmt.Println(strings.Join(handleArgs(text[5:]), " "))
 		} else {
-			runPathCmd(text)
+			runPathCmd(handleArgs(text))
 		}
 	}
 }
