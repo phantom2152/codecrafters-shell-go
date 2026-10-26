@@ -20,41 +20,45 @@ type target struct {
 }
 
 type builtinCompleter struct {
-	names []string
+	names      []string
 	lastPrefix string
 }
 
 func (c *builtinCompleter) Do(line []rune, pos int) ([][]rune, int) {
 	prefix := string(line[:pos])
 
-	if (prefix != c.lastPrefix){
-		c.lastPrefix = prefix;
+	if prefix != c.lastPrefix {
+		c.lastPrefix = prefix
 		fmt.Print("\x07") // bell
 		return nil, 0
 	}
 
 	matches := NewSet[string]()
-	for _,name:= range c.names{
-		if strings.HasPrefix(name,prefix){
+	for _, name := range c.names {
+		if strings.HasPrefix(name, prefix) {
 			matches.Add(name)
 		}
 	}
 
 	for _, dir := range filepath.SplitList(os.Getenv("PATH")) {
-		if dir == "" {dir = "."}
+		if dir == "" {
+			dir = "."
+		}
 
 		entries, err := os.ReadDir(dir)
-		if err != nil { continue }
+		if err != nil {
+			continue
+		}
 
 		for _, entry := range entries {
 			name := entry.Name()
 			if !strings.HasPrefix(name, prefix) {
 				continue
 			}
-			
+
 			info, err := os.Stat(filepath.Join(dir, name))
 			if err != nil || info.IsDir() || info.Mode()&0o111 == 0 {
-							continue
+				continue
 			}
 
 			matches.Add(name)
@@ -62,21 +66,25 @@ func (c *builtinCompleter) Do(line []rune, pos int) ([][]rune, int) {
 	}
 
 	if len(matches) == 0 {
-			fmt.Print("\x07") // bell
-			return nil, 0
+		fmt.Print("\x07") // bell
+		return nil, 0
 	}
 
 	names := make([]string, 0, len(matches))
-	for name := range matches { 
+	for name := range matches {
 		names = append(names, name)
 	}
 	slices.Sort(names)
 
-	candidates := make([][]rune, 0, len(names))
-	for _, name := range names {
-		candidates = append(candidates, []rune(name[len(prefix):]+" "))
-	}
-	return candidates, len(prefix)
+	fmt.Print("\r\n" + strings.Join(names, "  ") + "\r\n")
+	fmt.Print("$ " + prefix)
+	return nil, 0
+
+	// candidates := make([][]rune, 0, len(names))
+	// for _, name := range names {
+	// 	candidates = append(candidates, []rune(name[len(prefix):]+" "))
+	// }
+	// return candidates, len(prefix)
 }
 
 type redirects struct {
