@@ -66,7 +66,6 @@ func runPathCmd(args []string) {
 		return
 	}
 
-	fmt.Println(args)
 	cmd := exec.Command(args[0], args[1:]...)
 	output, err := cmd.Output()
 	if err != nil {
@@ -106,6 +105,7 @@ func handleArgs(argString string) []string {
 	if tokenStarted {
 		args = append(args, toAppend.String())
 	}
+
 	return args
 }
 
