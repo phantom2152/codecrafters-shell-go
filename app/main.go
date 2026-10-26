@@ -76,6 +76,11 @@ func (c *builtinCompleter) Do(line []rune, pos int) ([][]rune, int) {
 	}
 	slices.Sort(names)
 
+	if len(names) == 1 {
+		c.lastPrefix = ""
+		return [][]rune{[]rune(names[0][len(prefix):] + " ")}, len(prefix)
+	}
+
 	fmt.Print("\r\n" + strings.Join(names, "  ") + "\r\n")
 	fmt.Print("$ " + prefix)
 	return nil, 0
