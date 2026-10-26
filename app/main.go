@@ -10,24 +10,10 @@ import (
 	"strings"
 )
 
-type PathHolder struct {
-	CurrentPath string
-}
+var shellBuiltIn = []string{"echo", "exit", "type", "pwd", "cd"}
+var processDir string
 
-func NewPH() (*PathHolder, error) {
-	originalDir, err := os.Getwd()
-	if err != nil {
-		return &PathHolder{}, fmt.Errorf("Error getting current directory: %w", err)
-	}
-	return &PathHolder{CurrentPath: originalDir}, nil
-}
-
-func (p *PathHolder) getCWD() string {
-	return p.CurrentPath
-}
-
-func (p *PathHolder) changeDir(changePath string) error {
-
+func changeDir(changePath string) error {
 	if strings.HasPrefix(changePath, "~") {
 		home, err := os.UserHomeDir()
 		if err != nil {
@@ -46,64 +32,68 @@ func (p *PathHolder) changeDir(changePath string) error {
 	if err != nil {
 		return fmt.Errorf("Error getting current directory: %w", err)
 	}
-	p.CurrentPath = newDir
+	processDir = newDir
 
 	return err
 }
 
-func checkPathCmd(cmd string) {
-	if path, err := exec.LookPath(cmd); err == nil {
-		fmt.Printf("%s is %s\n", cmd, path)
-	} else {
-		fmt.Printf("%s: not found\n", cmd)
-	}
-}
+func runSystemCmd(args []string) {
 
-func runPathCmd(args []string) {
-	_, err := exec.LookPath(args[0])
+	cmdToRun := args[0]
+	args = args[1:]
+
+	_, err := exec.LookPath(cmdToRun)
 	if err != nil {
-		fmt.Printf("%s: command not found\n", args[0])
+		fmt.Fprintf(os.Stderr, "%s: command not found\n", cmdToRun)
 		return
 	}
 
-	cmd := exec.Command(args[0], args[1:]...)
+	toBeSliced := len(args)
+
+	if len(args) >= 2 && (args[len(args)-2] == ">" || args[len(args)-2] == "1>") {
+		toBeSliced = len(args) - 2
+	}
+
+	cmd := exec.Command(cmdToRun, args[:toBeSliced]...)
 	output, err := cmd.Output()
 	if err != nil {
-		fmt.Printf("Error executing %s: %s\n", args[0], err)
+		fmt.Fprintf(os.Stderr, "Error executing %s: %s\n", args[0], err)
+		return
 	}
-	fmt.Printf("%s", string(output))
+
+	handleStdOut(string(output), args[toBeSliced:])
 }
 
-func handleArgs(argString string) []string{
-	var escapeInsideDoubleQuotes = []byte{'"','\\','$','`','\n'};
+func handleInputString(argString string) []string {
+	var escapeInsideDoubleQuotes = []byte{'"', '\\', '$', '`', '\n'}
 	var args []string
 	var toAppend strings.Builder
 	isInsideSingleQuote := false
 	isInsideDoubleQuote := false
 	tokenStarted := false
-	
-	for i:=0;i <len(argString);i++ {
-		ch:= argString[i];
 
-		if (isInsideDoubleQuote && ch == '\\' && i+1<len(argString) && slices.Contains(escapeInsideDoubleQuotes,argString[i+1])){
+	for i := 0; i < len(argString); i++ {
+		ch := argString[i]
+
+		if isInsideDoubleQuote && ch == '\\' && i+1 < len(argString) && slices.Contains(escapeInsideDoubleQuotes, argString[i+1]) {
 			i++
 			toAppend.WriteByte(argString[i])
 			continue
 		}
 
-		if ch == '"' && !isInsideSingleQuote{
+		if ch == '"' && !isInsideSingleQuote {
 			isInsideDoubleQuote = !isInsideDoubleQuote
 			tokenStarted = true
 			continue
 		}
 
-		if ch == '\'' && !isInsideDoubleQuote{
+		if ch == '\'' && !isInsideDoubleQuote {
 			isInsideSingleQuote = !isInsideSingleQuote
 			tokenStarted = true
 			continue
 		}
 
-		if ch == '\\' && (!isInsideSingleQuote && !isInsideDoubleQuote) && i+1<len(argString){
+		if ch == '\\' && (!isInsideSingleQuote && !isInsideDoubleQuote) && i+1 < len(argString) {
 			tokenStarted = true
 			i++
 			toAppend.WriteByte(argString[i])
@@ -122,44 +112,118 @@ func handleArgs(argString string) []string{
 		toAppend.WriteByte(ch)
 		tokenStarted = true
 	}
-	
-	if tokenStarted {
-			args = append(args, toAppend.String())
-		     }
 
-	return  args
+	if tokenStarted {
+		args = append(args, toAppend.String())
+	}
+
+	return args
+}
+
+func handleStdOut(content string, args []string) {
+
+	if len(args) == 0 || (args[0] != ">" && args[0] != "1>") {
+		fmt.Print(content)
+		return
+	}
+
+	file, err := os.Create(args[1])
+	if err != nil {
+		fmt.Fprintf(os.Stderr,"Error while creating file: %s\n",err)
+		return
+	}
+
+	defer file.Close()
+
+	_, err = file.WriteString(content)
+
+}
+
+func handleCd(args []string) {
+	if len(args) == 0 {
+		fmt.Fprintf(os.Stderr, "No args provided.\n")
+		return
+	}
+
+	toDir := args[0]
+	err := changeDir(toDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "cd: %s: No such file or directory\n", toDir)
+	}
+
+}
+
+func handleType(args []string) {
+	if len(args) == 0 {
+		fmt.Fprintf(os.Stderr, "No args provided.\n")
+		return
+	}
+
+	if slices.Contains(shellBuiltIn, args[0]) {
+		toPrint := fmt.Sprintf("%s is a shell builtin\n", args[0])
+		handleStdOut(toPrint, args[1:])
+		return
+	}
+
+	if path, err := exec.LookPath(args[0]); err == nil {
+		toPrint := fmt.Sprintf("%s is %s\n", args[0], path)
+		handleStdOut(toPrint, args[1:])
+	} else {
+		fmt.Fprintf(os.Stderr, "%s: not found\n", args[0])
+	}
+}
+
+func handleEcho(args []string) {
+	if len(args) == 0 {
+		fmt.Fprintf(os.Stderr, "No args provided.\n")
+		return
+	}
+
+	toBeSliced := len(args)
+
+	if len(args) >= 2 && (args[len(args)-2] == ">" || args[len(args)-2] == "1>") {
+		toBeSliced = len(args) - 2
+	}
+
+	toPrint := strings.Join(args[:toBeSliced], " ") + "\n"
+	handleStdOut(toPrint, args[toBeSliced:])
+}
+
+func handlePwd(args []string) {
+	toPrint := fmt.Sprintf("%s\n",processDir)
+	handleStdOut(toPrint,args)
 }
 
 func main() {
 	reader := bufio.NewReader(os.Stdin)
-	var commands = []string{"echo", "exit", "type", "pwd", "cd"}
-	ph, _ := NewPH()
+	processDir, _ = os.Getwd()
 
+mainLoop:
 	for {
 		fmt.Print("$ ")
 		text, _ := reader.ReadString('\n')
-		text = strings.ReplaceAll(text, "\n", "")
-		text = strings.TrimSpace(text)
-
-		if text == "exit" {
-			break
-		} else if text == "pwd" {
-			fmt.Println(ph.getCWD())
-
-		} else if strings.HasPrefix(text, "cd ") {
-			toDir := handleArgs(text[3:])
-			err := ph.changeDir(toDir[0])
-			if err != nil {
-				fmt.Printf("cd: %s: No such file or directory\n", toDir[0])
-			}
-		} else if strings.HasPrefix(text, "type ") && slices.Contains(commands, text[5:]) {
-			fmt.Printf("%s is a shell builtin\n", text[5:])
-		} else if strings.HasPrefix(text, "type ") {
-			checkPathCmd(handleArgs(text[5:])[0])
-		} else if strings.HasPrefix(text, "echo ") {
-			fmt.Println(strings.Join(handleArgs(text[5:])," "))
-		} else {
-			runPathCmd(handleArgs(text))
+		text = strings.TrimSuffix(text,"\n")
+		commandArgs := handleInputString(text)
+		if len(commandArgs) == 0 {
+			continue mainLoop
 		}
+		command := commandArgs[0]
+		args := commandArgs[1:]
+
+		switch command {
+		case "exit":
+			break mainLoop
+		case "pwd":
+			handlePwd(args)
+		case "cd":
+			handleCd(args)
+		case "type":
+			handleType(args)
+		case "echo":
+			handleEcho(args)
+		default:
+			runSystemCmd(commandArgs)
+		}
+
 	}
 }
