@@ -1,22 +1,23 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"github.com/chzyer/readline"
 )
 
 type target struct {
 	file   string
 	append bool
 }
-
 
 type redirects struct {
 	stdout target
@@ -62,7 +63,7 @@ func emit(content string, t target, fallback *os.File) {
 
 	flags := os.O_WRONLY | os.O_CREATE | os.O_TRUNC
 	if t.append {
-			flags = os.O_WRONLY | os.O_CREATE | os.O_APPEND
+		flags = os.O_WRONLY | os.O_CREATE | os.O_APPEND
 	}
 
 	f, err := os.OpenFile(t.file, flags, 0o644)
@@ -119,7 +120,7 @@ func runSystemCmd(rawArgs []string) {
 	if err := cmd.Run(); err != nil {
 		var exitErr *exec.ExitError
 		if !errors.As(err, &exitErr) {
-			fmt.Fprintf(os.Stderr,"%s: %s\n", cmdToRun, err)
+			fmt.Fprintf(os.Stderr, "%s: %s\n", cmdToRun, err)
 		}
 	}
 
@@ -230,13 +231,30 @@ func handlePwd(rawArgs []string) {
 }
 
 func main() {
-	reader := bufio.NewReader(os.Stdin)
+	completer := readline.NewPrefixCompleter(
+		readline.PcItem("echo"),
+		readline.PcItem("exit"),
+	)
+	rl,err := readline.NewEx(
+		&readline.Config{
+			Prompt: "$ ",
+			AutoComplete: completer,
+		})
+	if err != nil {
+		panic(err)
+	}
+	defer rl.Close()
 	processDir, _ = os.Getwd()
 
 mainLoop:
 	for {
-		fmt.Print("$ ")
-		text, _ := reader.ReadString('\n')
+		text, err := rl.Readline()
+		if err == readline.ErrInterrupt {
+			continue
+		}
+		if err == io.EOF {
+			break // Ctrl+D
+		}
 		text = strings.TrimSuffix(text, "\n")
 		commandArgs := handleInputString(text)
 		if len(commandArgs) == 0 {
