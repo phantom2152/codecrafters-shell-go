@@ -21,12 +21,19 @@ type target struct {
 
 type builtinCompleter struct {
 	names []string
+	lastPrefix string
 }
 
-func (c builtinCompleter) Do(line []rune, pos int) ([][]rune, int) {
+func (c *builtinCompleter) Do(line []rune, pos int) ([][]rune, int) {
 	prefix := string(line[:pos])
-	matches := NewSet[string]()
 
+	if (prefix != c.lastPrefix){
+		c.lastPrefix = prefix;
+		fmt.Print("\x07") // bell
+		return nil, 0
+	}
+
+	matches := NewSet[string]()
 	for _,name:= range c.names{
 		if strings.HasPrefix(name,prefix){
 			matches.Add(name)
@@ -286,7 +293,7 @@ func main() {
 
 	rl, err := readline.NewEx(&readline.Config{
 		Prompt:       "$ ",
-		AutoComplete: builtinCompleter{names: []string{"echo", "exit"}},
+		AutoComplete: &builtinCompleter{names: []string{"echo", "exit"}},
 	})
 	if err != nil {
 		panic(err)
