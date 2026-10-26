@@ -69,10 +69,17 @@ func (c *builtinCompleter) Do(line []rune, pos int) ([][]rune, int) {
 		names = append(names, name)
 	}
 	slices.Sort(names)
+	
+	lcp := longestCommonPrefix(names)
 
 	if len(names) == 1 {
 		c.lastPrefix = ""
 		return [][]rune{[]rune(names[0][len(prefix):] + " ")}, len(prefix)
+	}
+	
+	if len(lcp) > len(prefix) {
+		c.lastPrefix = ""
+    	return [][]rune{[]rune(lcp[len(prefix):])}, len(prefix)
 	}
 
 	if prefix != c.lastPrefix {
@@ -86,6 +93,23 @@ func (c *builtinCompleter) Do(line []rune, pos int) ([][]rune, int) {
 	fmt.Print("\r\n" + strings.Join(names, "  ") + "\r\n")
 	fmt.Print("$ " + prefix)
 	return nil, 0
+
+}
+
+func longestCommonPrefix(names []string) string {
+	if len(names) == 0{
+		return  ""
+	}
+
+	first := names[0]
+	last := names[len(names)-1]
+
+	i:=0
+	for i < len(first) && i < len(last) && first[i] == last[i] {
+        i++
+    }
+
+    return first[:i]
 }
 
 type redirects struct {
