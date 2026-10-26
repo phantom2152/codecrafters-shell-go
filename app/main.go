@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -12,29 +13,19 @@ import (
 )
 
 var shellBuiltIn = []string{"echo", "exit", "type", "pwd", "cd"}
+var redirectOperators = []string{">", "1>", "2>"}
 var processDir string
 
 func changeDir(changePath string) error {
 	if strings.HasPrefix(changePath, "~") {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return fmt.Errorf("Failed to get home directory: %w", err)
-		}
-
+		home, _ := os.UserHomeDir()
 		changePath = filepath.Join(home, changePath[1:])
 	}
-
 	err := os.Chdir(changePath)
-
 	if err != nil {
-		return fmt.Errorf("Failed to change directory: %w", err)
+		return err
 	}
-	newDir, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("Error getting current directory: %w", err)
-	}
-	processDir = newDir
-
+	processDir, _ = os.Getwd()
 	return err
 }
 
@@ -53,21 +44,25 @@ func runSystemCmd(args []string) {
 	}
 
 	toBeSliced := len(args)
-	if len(args) >= 2 && (args[len(args)-2] == ">" || args[len(args)-2] == "1>") {
+	if len(args) >= 2 && slices.Contains(redirectOperators, args[len(args)-2]) {
 		toBeSliced = len(args) - 2
 	}
 
+	var stdout,stderr bytes.Buffer
 	cmd := exec.Command(cmdToRun, args[:toBeSliced]...)
-	cmd.Stderr = os.Stderr
-	output, err := cmd.Output()
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err = cmd.Run()
 	if err != nil {
 		var exitErr *exec.ExitError
 		if !errors.As(err, &exitErr) {
-			fmt.Fprintf(os.Stderr, "%s: %s\n", cmdToRun, err)
+			stderr.WriteString(fmt.Sprintf("%s: %s\n", cmdToRun, err))
 		}
 	}
-
-	handleStdOut(string(output), args[toBeSliced:])
+	
+	redirects := args[toBeSliced:]
+	handleStdOut(stdout.String(), redirects)
+	handleStdErr(stderr.String(), redirects)
 }
 
 func handleInputString(argString string) []string {
@@ -145,6 +140,23 @@ func handleStdOut(content string, args []string) {
 
 }
 
+func handleStdErr(content string, args []string) {
+	if len(args) == 0 || (args[0] != "2>") {
+		fmt.Fprint(os.Stderr, content)
+		return
+	}
+
+	file, err := os.Create(args[1])
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error while creating file: %s\n", err)
+		return
+	}
+
+	defer file.Close()
+
+	_, err = file.WriteString(content)
+}
+
 func handleCd(args []string) {
 	if len(args) == 0 {
 		fmt.Fprintf(os.Stderr, "No args provided.\n")
@@ -152,9 +164,14 @@ func handleCd(args []string) {
 	}
 
 	toDir := args[0]
+	toBeSliced := len(args)
+	if len(args) >= 2 && slices.Contains(redirectOperators, args[len(args)-2]) {
+		toBeSliced = len(args) - 2
+	}
 	err := changeDir(toDir)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "cd: %s: No such file or directory\n", toDir)
+		toPrint := fmt.Sprintf("cd: %s: No such file or directory\n", toDir)
+		handleStdErr(toPrint, args[toBeSliced:])
 	}
 
 }
@@ -165,17 +182,23 @@ func handleType(args []string) {
 		return
 	}
 
+	toBeSliced := len(args)
+	if len(args) >= 2 && slices.Contains(redirectOperators, args[len(args)-2]) {
+		toBeSliced = len(args) - 2
+	}
+
 	if slices.Contains(shellBuiltIn, args[0]) {
 		toPrint := fmt.Sprintf("%s is a shell builtin\n", args[0])
-		handleStdOut(toPrint, args[1:])
+		handleStdOut(toPrint, args[toBeSliced:])
 		return
 	}
 
 	if path, err := exec.LookPath(args[0]); err == nil {
 		toPrint := fmt.Sprintf("%s is %s\n", args[0], path)
-		handleStdOut(toPrint, args[1:])
+		handleStdOut(toPrint, args[toBeSliced:])
 	} else {
-		fmt.Fprintf(os.Stderr, "%s: not found\n", args[0])
+		toPrint := fmt.Sprintf("%s: not found\n", args[0])
+		handleStdErr(toPrint, args[toBeSliced:])
 	}
 }
 
@@ -186,18 +209,19 @@ func handleEcho(args []string) {
 	}
 
 	toBeSliced := len(args)
-
-	if len(args) >= 2 && (args[len(args)-2] == ">" || args[len(args)-2] == "1>") {
+	if len(args) >= 2 && slices.Contains(redirectOperators, args[len(args)-2]) {
 		toBeSliced = len(args) - 2
 	}
 
 	toPrint := strings.Join(args[:toBeSliced], " ") + "\n"
 	handleStdOut(toPrint, args[toBeSliced:])
+	handleStdErr("", args[toBeSliced:])
 }
 
 func handlePwd(args []string) {
 	toPrint := fmt.Sprintf("%s\n", processDir)
 	handleStdOut(toPrint, args)
+	handleStdErr("", args)
 }
 
 func main() {
