@@ -74,22 +74,29 @@ func runPathCmd(args []string) {
 	fmt.Printf("%s", string(output))
 }
 
-func handleArgs(argString string) []string{
+func handleArgs(argString string) []string {
 	var args []string
 	var toAppend strings.Builder
-	isInsideQuote := false
+	isInsideSingleQuote := false
+	isInsideDoubleQuote := false
 	tokenStarted := false
-	
-	for i:=0;i <len(argString);i++ {
-		ch:= argString[i];
 
-		if ch == '\''{
-			isInsideQuote = !isInsideQuote
+	for i := 0; i < len(argString); i++ {
+		ch := argString[i]
+
+		if ch == '"' {
+			isInsideDoubleQuote = !isInsideDoubleQuote
 			tokenStarted = true
 			continue
 		}
 
-		if ch == ' ' && !isInsideQuote {
+		if ch == '\'' && !isInsideDoubleQuote {
+			isInsideSingleQuote = !isInsideSingleQuote
+			tokenStarted = true
+			continue
+		}
+
+		if ch == ' ' && (!isInsideSingleQuote || !isInsideDoubleQuote) {
 			if tokenStarted {
 				args = append(args, toAppend.String())
 				toAppend.Reset()
@@ -101,12 +108,12 @@ func handleArgs(argString string) []string{
 		toAppend.WriteByte(ch)
 		tokenStarted = true
 	}
-	
-	if tokenStarted {
-			args = append(args, toAppend.String())
-		     }
 
-	return  args
+	if tokenStarted {
+		args = append(args, toAppend.String())
+	}
+
+	return args
 }
 
 func main() {
@@ -136,7 +143,7 @@ func main() {
 		} else if strings.HasPrefix(text, "type ") {
 			checkPathCmd(handleArgs(text[5:])[0])
 		} else if strings.HasPrefix(text, "echo ") {
-			fmt.Println(strings.Join(handleArgs(text[5:])," "))
+			fmt.Println(strings.Join(handleArgs(text[5:]), " "))
 		} else {
 			runPathCmd(handleArgs(text))
 		}
