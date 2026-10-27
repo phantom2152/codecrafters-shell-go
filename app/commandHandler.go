@@ -317,6 +317,7 @@ func handleJobs(rawArgs []string) {
 	jobsMu.Lock()
 	snapshot := slices.Clone(jobs)
 	jobsMu.Unlock()
+	var finished []int
 
 	var out strings.Builder
 	for idx, j := range snapshot {
@@ -329,11 +330,19 @@ func handleJobs(rawArgs []string) {
 		}
 
 		status := "Running"
+		cmd := j.command
 		if j.done {
 			status = "Done"
+			cmd = strings.TrimSuffix(cmd, " &")
+			finished = append(finished, j.number)
 		}
 
-		fmt.Fprintf(&out, "[%d]%s  %-24s%s\n", j.number, marker, status, j.command)
+		fmt.Fprintf(&out, "[%d]%s  %-24s%s\n", j.number, marker, status, cmd)
 	}
 	finish(out.String(), "", r)
+	jobsMu.Lock()
+	jobs = slices.DeleteFunc(jobs, func(j job) bool {
+		return slices.Contains(finished, j.number)
+	})
+	jobsMu.Unlock()
 }
