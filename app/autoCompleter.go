@@ -19,8 +19,6 @@ func (c *builtinCompleter) Do(line []rune, pos int) ([][]rune, int) {
 	compLine := string(line)
 	compPoint := fmt.Sprintf("%d", len(text))
 
-	_ = append(os.Environ(), "COMP_LINE="+compLine, "COMP_POINT="+compPoint)
-
 	lastSpaceIdx := strings.LastIndex(text, " ")
 	isCommand := lastSpaceIdx == -1
 
@@ -38,7 +36,7 @@ func (c *builtinCompleter) Do(line []rune, pos int) ([][]rune, int) {
 	} else {
 		commandName := strings.Split(text, " ")[0]
 		if scriptPath, exists := completeMap[commandName]; exists {
-			handleCustomCompletion(scriptPath, commandName, prefix, text, &matches)
+			handleCustomCompletion(scriptPath, commandName, prefix, text, compLine, compPoint, &matches)
 		} else {
 			handleFilesFolderCompletion(prefix, &matches)
 		}
@@ -156,7 +154,7 @@ func handleFilesFolderCompletion(prefix string, matches *Set[string]) {
 	}
 }
 
-func handleCustomCompletion(scriptPath, commandName, currentWord, fullLine string, matches *Set[string]) {
+func handleCustomCompletion(scriptPath, commandName, currentWord, fullLine, compLine, compPoint string, matches *Set[string]) {
 	words := strings.Fields(fullLine)
 	prevWord := ""
 
@@ -167,6 +165,10 @@ func handleCustomCompletion(scriptPath, commandName, currentWord, fullLine strin
 	}
 
 	cmd := exec.Command(scriptPath, commandName, currentWord, prevWord)
+	cmd.Env = append(os.Environ(),
+		"COMP_LINE="+compLine,
+		"COMP_POINT="+compPoint,
+	)
 	out, err := cmd.Output()
 	if err != nil {
 		return
