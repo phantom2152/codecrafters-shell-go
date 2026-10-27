@@ -313,5 +313,17 @@ func handleComplete(rawArgs []string) {
 }
 
 func handleJobs(rawArgs []string) {
-
+	_, r := splitRedirects(rawArgs)
+	marker := ""
+	for idx, j := range jobs {
+		status := "Running"
+		if idx == len(jobs)-1 {
+			marker = "+"
+		}
+		if j.done {
+			status = "Done"
+		}
+		toPrint := fmt.Sprintf("[%d]%-3s%-24s%s\n", j.number, marker, status, j.command)
+		finish(toPrint, "", r)
+	}
 }
