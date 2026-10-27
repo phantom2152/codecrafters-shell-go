@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"slices"
 	"strings"
 	"sync"
 
@@ -14,8 +13,6 @@ import (
 var shellBuiltIn = []string{"echo", "exit", "type", "pwd", "cd", "complete", "jobs"}
 var completeMap map[string]string
 var processDir string
-var shellOut io.Writer = os.Stdout
-var shellErr io.Writer = os.Stderr
 
 type job struct {
 	number  int
@@ -27,7 +24,26 @@ type job struct {
 var jobs []job
 var jobsMu sync.Mutex
 
-func runCommand(commandArgs []string, background bool) bool {
+func splitPipes(args []string) [][]string {
+	var cmds [][]string
+	var current []string
+	for _, arg := range args {
+		if arg == "|" {
+			if len(current) > 0 {
+				cmds = append(cmds, current)
+				current = nil
+			}
+		} else {
+			current = append(current, arg)
+		}
+	}
+	if len(current) > 0 {
+		cmds = append(cmds, current)
+	}
+	return cmds
+}
+
+func runCommand(commandArgs []string, background bool, stdin io.Reader, outWriter io.Writer) bool {
 	command := commandArgs[0]
 	args := commandArgs[1:]
 
@@ -35,19 +51,19 @@ func runCommand(commandArgs []string, background bool) bool {
 	case "exit":
 		return false
 	case "pwd":
-		handlePwd(args)
+		handlePwd(args, outWriter)
 	case "cd":
-		handleCd(args)
+		handleCd(args, outWriter)
 	case "type":
-		handleType(args)
+		handleType(args, outWriter)
 	case "echo":
-		handleEcho(args)
+		handleEcho(args, outWriter)
 	case "complete":
-		handleComplete(args)
+		handleComplete(args, outWriter)
 	case "jobs":
-		handleJobs(args)
+		handleJobs(args, outWriter)
 	default:
-		handleSystemCmd(commandArgs, background)
+		handleSystemCmd(commandArgs, background, stdin, outWriter)
 	}
 	return true
 }
@@ -87,12 +103,47 @@ mainLoop:
 			backGroundTask = true
 		}
 
-		if idx := slices.Index(commandArgs, "|"); idx != -1 {
-			// TODO handle pipes
+		commands := splitPipes(commandArgs)
+		if len(commands) == 0 {
 			continue mainLoop
 		}
+		var pipelineDone sync.WaitGroup
+		var nextStageInput io.Reader = os.Stdin
+		shouldBreak := false
 
-		if !runCommand(commandArgs, backGroundTask) {
+		for i, cmdArgs := range commands {
+			var stageOutput io.Writer = os.Stdout
+			var pipeWriter, pipeReader *os.File
+
+			if i < len(commands)-1 {
+				reader, writer, _ := os.Pipe()
+				pipeReader, pipeWriter = reader, writer
+				stageOutput = writer
+			}
+			stageInput, args := nextStageInput, cmdArgs
+
+			pipelineDone.Add(1)
+
+			go func() {
+				defer pipelineDone.Done()
+				if !runCommand(args, backGroundTask, stageInput, stageOutput) && len(commands) == 1 {
+					shouldBreak = true
+				}
+				if pipeWriter != nil {
+					pipeWriter.Close() // gives the next stage its EOF
+				}
+				if f, ok := stageInput.(*os.File); ok && f != os.Stdin {
+					f.Close() // we're done reading this pipe
+				}
+			}()
+
+			if pipeReader != nil {
+				nextStageInput = pipeReader
+			}
+		}
+
+		pipelineDone.Wait()
+		if shouldBreak {
 			break mainLoop
 		}
 	}

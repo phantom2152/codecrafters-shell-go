@@ -83,9 +83,9 @@ func emit(content string, t target, fallback io.Writer) {
 	}
 }
 
-func finish(stdout, stderr string, r redirects) {
-	emit(stdout, r.stdout, shellOut)
-	emit(stderr, r.stderr, shellErr)
+func finish(stdout, stderr string, r redirects, outWriter io.Writer) {
+	emit(stdout, r.stdout, outWriter)
+	emit(stderr, r.stderr, os.Stderr)
 }
 
 func changeDir(changePath string) error {
@@ -206,7 +206,7 @@ func handleInputString(argString string) []string {
 	return args
 }
 
-func handleSystemCmd(rawArgs []string, backGroundTask bool) {
+func handleSystemCmd(rawArgs []string, backGroundTask bool, stdin io.Reader, outWriter io.Writer) {
 
 	args, r := splitRedirects(rawArgs)
 	if len(args) == 0 {
@@ -216,15 +216,20 @@ func handleSystemCmd(rawArgs []string, backGroundTask bool) {
 	cmdToRun := args[0]
 
 	if _, err := exec.LookPath(cmdToRun); err != nil {
-		finish("", fmt.Sprintf("%s: command not found\n", cmdToRun), r)
+		finish("", fmt.Sprintf("%s: command not found\n", cmdToRun), r, outWriter)
 		return
 	}
 
 	cmd := exec.Command(cmdToRun, args[1:]...)
+	cmd.Stdin = stdin
 	if !backGroundTask {
 		var stdout, stderr bytes.Buffer
-		cmd.Stdout = &stdout
 		cmd.Stderr = &stderr
+		if r.stdout.file == "" {
+			cmd.Stdout = outWriter
+		} else {
+			cmd.Stdout = &stdout
+		}
 		if err := cmd.Run(); err != nil {
 			var exitErr *exec.ExitError
 			if !errors.As(err, &exitErr) {
@@ -232,7 +237,7 @@ func handleSystemCmd(rawArgs []string, backGroundTask bool) {
 			}
 		}
 
-		finish(stdout.String(), stderr.String(), r)
+		finish(stdout.String(), stderr.String(), r, outWriter)
 	} else {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -268,7 +273,7 @@ func handleSystemCmd(rawArgs []string, backGroundTask bool) {
 	}
 }
 
-func handleCd(rawArgs []string) {
+func handleCd(rawArgs []string, outWriter io.Writer) {
 	args, r := splitRedirects(rawArgs)
 
 	if len(args) == 0 {
@@ -279,13 +284,13 @@ func handleCd(rawArgs []string) {
 	toDir := args[0]
 
 	if err := changeDir(toDir); err != nil {
-		finish("", fmt.Sprintf("cd: %s: No such file or directory\n", toDir), r)
+		finish("", fmt.Sprintf("cd: %s: No such file or directory\n", toDir), r, outWriter)
 		return
 	}
-	finish("", "", r)
+	finish("", "", r, outWriter)
 }
 
-func handleType(rawArgs []string) {
+func handleType(rawArgs []string, outWriter io.Writer) {
 	args, r := splitRedirects(rawArgs)
 
 	if len(args) == 0 {
@@ -294,28 +299,28 @@ func handleType(rawArgs []string) {
 	}
 
 	if slices.Contains(shellBuiltIn, args[0]) {
-		finish(fmt.Sprintf("%s is a shell builtin\n", args[0]), "", r)
+		finish(fmt.Sprintf("%s is a shell builtin\n", args[0]), "", r, outWriter)
 		return
 	}
 
 	if path, err := exec.LookPath(args[0]); err == nil {
-		finish(fmt.Sprintf("%s is %s\n", args[0], path), "", r)
+		finish(fmt.Sprintf("%s is %s\n", args[0], path), "", r, outWriter)
 	} else {
-		finish("", fmt.Sprintf("%s: not found\n", args[0]), r)
+		finish("", fmt.Sprintf("%s: not found\n", args[0]), r, outWriter)
 	}
 }
 
-func handleEcho(rawArgs []string) {
+func handleEcho(rawArgs []string, outWriter io.Writer) {
 	args, r := splitRedirects(rawArgs)
-	finish(strings.Join(args, " ")+"\n", "", r)
+	finish(strings.Join(args, " ")+"\n", "", r, outWriter)
 }
 
-func handlePwd(rawArgs []string) {
+func handlePwd(rawArgs []string, outWriter io.Writer) {
 	_, r := splitRedirects(rawArgs)
-	finish(processDir+"\n", "", r)
+	finish(processDir+"\n", "", r, outWriter)
 }
 
-func handleComplete(rawArgs []string) {
+func handleComplete(rawArgs []string, outWriter io.Writer) {
 	args, r := splitRedirects(rawArgs)
 
 	if len(args) < 2 {
@@ -360,10 +365,10 @@ func handleComplete(rawArgs []string) {
 	default:
 		fmt.Fprintf(os.Stderr, "No proper flags provided.\n")
 	}
-	finish(printStr, errStr, r)
+	finish(printStr, errStr, r, outWriter)
 }
 
-func handleJobs(rawArgs []string) {
+func handleJobs(rawArgs []string, outWriter io.Writer) {
 	_, r := splitRedirects(rawArgs)
-	finish(reapJobs(false), "", r)
+	finish(reapJobs(false), "", r, outWriter)
 }
