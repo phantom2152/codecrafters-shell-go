@@ -98,6 +98,14 @@ func changeDir(changePath string) error {
 	return err
 }
 
+func nextFreeJobNumber() int {
+	n := 1
+	for slices.ContainsFunc(jobs, func(j job) bool { return j.number == n }) {
+		n++
+	}
+	return n
+}
+
 func reapJobs(onlyDone bool) string {
 	jobsMu.Lock()
 	snapshot := slices.Clone(jobs)
@@ -236,8 +244,7 @@ func handleSystemCmd(rawArgs []string, backGroundTask bool) {
 		pid := cmd.Process.Pid
 
 		jobsMu.Lock()
-		number := nextJobNumber
-		nextJobNumber++
+		number := nextFreeJobNumber()
 		jobs = append(jobs, job{
 			number:  number,
 			pid:     pid,
