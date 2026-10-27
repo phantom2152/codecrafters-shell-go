@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 type target struct {
@@ -535,12 +536,17 @@ func handleDeclare(rawArgs []string, outWriter io.Writer) {
 		}
 	default:
 		{
-			key, val, found := strings.Cut(args[0], "=")
-			if !found {
+			firstChar := args[0][0]
+			if firstChar == '_' || unicode.IsLetter(rune(firstChar)) {
+				key, val, found := strings.Cut(args[0], "=")
+				if !found {
+					return
+				}
+
+				declareStore[key] = val
 				return
 			}
-
-			declareStore[key] = val
+			errStr = fmt.Sprintf("declare: `%s': not a valid identifier\n", args[0])
 		}
 
 	}
