@@ -46,8 +46,12 @@ func splitPipes(args []string) [][]string {
 	return cmds
 }
 
-func addToHistory(cmd string) {
-	//TODO
+func initSys() {
+	completeMap = make(map[string]string)
+	hFilePath := os.Getenv("HISTFILE")
+	if hFilePath != "" {
+		loadHistory(hFilePath)
+	}
 }
 
 func runCommand(commandArgs []string, background bool, stdin io.Reader, outWriter io.Writer) bool {
@@ -78,8 +82,7 @@ func runCommand(commandArgs []string, background bool, stdin io.Reader, outWrite
 }
 
 func main() {
-	completeMap = make(map[string]string)
-	loadHistory(os.Getenv("HISTFILE"))
+	initSys()
 	rl, err := readline.NewEx(&readline.Config{
 		Prompt:       "$ ",
 		AutoComplete: &builtinCompleter{names: shellBuiltIn},
