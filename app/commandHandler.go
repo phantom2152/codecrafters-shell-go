@@ -372,3 +372,14 @@ func handleJobs(rawArgs []string, outWriter io.Writer) {
 	_, r := splitRedirects(rawArgs)
 	finish(reapJobs(false), "", r, outWriter)
 }
+
+func handleHistory(rawArgs []string, outWriter io.Writer) {
+	_, r := splitRedirects(rawArgs)
+	var toPrint strings.Builder
+
+	for idx, item := range historyStore {
+		fmt.Fprintf(&toPrint, "%5d  %s\n", idx+1, item)
+	}
+
+	finish(toPrint.String(), "", r, outWriter)
+}

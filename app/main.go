@@ -13,6 +13,7 @@ import (
 var shellBuiltIn = []string{"echo", "exit", "type", "pwd", "cd", "complete", "jobs", "history"}
 var completeMap map[string]string
 var processDir string
+var historyStore []string
 
 type job struct {
 	number  int
@@ -62,6 +63,8 @@ func runCommand(commandArgs []string, background bool, stdin io.Reader, outWrite
 		handleComplete(args, outWriter)
 	case "jobs":
 		handleJobs(args, outWriter)
+	case "history":
+		handleHistory(args, outWriter)
 	default:
 		handleSystemCmd(commandArgs, background, stdin, outWriter)
 	}
@@ -92,6 +95,7 @@ mainLoop:
 			break // Ctrl+D
 		}
 		text = strings.TrimSuffix(text, "\n")
+		historyStore = append(historyStore, text)
 		commandArgs := handleInputString(text)
 
 		if len(commandArgs) == 0 {
