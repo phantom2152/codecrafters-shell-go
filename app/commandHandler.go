@@ -269,6 +269,7 @@ func handleComplete(rawArgs []string) {
 				return
 			}
 			delete(completeMap, args[1])
+
 		}
 	default:
 		fmt.Fprintf(os.Stderr, "No proper flags provided.\n")

@@ -12,6 +12,7 @@ import (
 type builtinCompleter struct {
 	names      []string
 	lastPrefix string
+	pending    bool
 }
 
 func (c *builtinCompleter) Do(line []rune, pos int) ([][]rune, int) {
@@ -32,7 +33,7 @@ func (c *builtinCompleter) Do(line []rune, pos int) ([][]rune, int) {
 	matches := NewSet[string]()
 
 	if isCommand {
-		handlePathCommandCompletion(c, prefix, &matches)
+		handlePathCommandCompletion(*c, prefix, &matches)
 	} else {
 		commandName := strings.Split(text, " ")[0]
 		if scriptPath, exists := completeMap[commandName]; exists {
@@ -56,7 +57,7 @@ func (c *builtinCompleter) Do(line []rune, pos int) ([][]rune, int) {
 	lcp := longestCommonPrefix(names)
 
 	if len(names) == 1 {
-		c.lastPrefix = ""
+		c.reset()
 		appendChar := " "
 		if strings.HasSuffix(names[0], string(filepath.Separator)) {
 			appendChar = ""
@@ -65,21 +66,27 @@ func (c *builtinCompleter) Do(line []rune, pos int) ([][]rune, int) {
 	}
 
 	if len(lcp) > len(prefix) {
-		c.lastPrefix = ""
+		c.reset()
 		return [][]rune{[]rune(lcp[len(prefix):])}, len(prefix)
 	}
 
-	if prefix != c.lastPrefix {
+	if !c.pending || prefix != c.lastPrefix {
+		c.pending = true
 		c.lastPrefix = prefix
 		fmt.Print("\x07") // bell
 		return nil, 0
 	}
 
-	c.lastPrefix = ""
+	c.reset()
 	fmt.Print("\r\n" + strings.Join(names, "  ") + "\r\n")
 	fmt.Print("$ " + text)
 	return nil, 0
 
+}
+
+func (c *builtinCompleter) reset() {
+	c.lastPrefix = ""
+	c.pending = false
 }
 
 func longestCommonPrefix(names []string) string {
@@ -98,7 +105,7 @@ func longestCommonPrefix(names []string) string {
 	return first[:i]
 }
 
-func handlePathCommandCompletion(c *builtinCompleter, prefix string, matches *Set[string]) {
+func handlePathCommandCompletion(c builtinCompleter, prefix string, matches *Set[string]) {
 	for _, name := range c.names {
 		if strings.HasPrefix(name, prefix) {
 			matches.Add(name)
