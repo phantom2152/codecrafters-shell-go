@@ -24,6 +24,7 @@ type job struct {
 
 var jobs []job
 var jobsMu sync.Mutex
+var historyMu sync.Mutex
 
 func splitPipes(args []string) [][]string {
 	var cmds [][]string

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -154,12 +153,12 @@ func reapJobs(onlyDone bool) string {
 }
 
 func printHistory(lastNToPrint int, r redirects, outWriter io.Writer) {
-	jobsMu.Lock()
+	historyMu.Lock()
 	snapshot := slices.Clone(historyStore)
-	jobsMu.Unlock()
+	historyMu.Unlock()
 	var toPrint strings.Builder
 
-	if lastNToPrint > len(snapshot) {
+	if lastNToPrint < 0 || lastNToPrint > len(snapshot) {
 		lastNToPrint = len(snapshot)
 	}
 
@@ -187,9 +186,22 @@ func loadHistory(filepath string) {
 		return
 	}
 
-	jobsMu.Lock()
+	historyMu.Lock()
 	historyStore = append(historyStore, lines...)
-	jobsMu.Unlock()
+	historyMu.Unlock()
+}
+
+func writeHistory(filepath string) error {
+	historyMu.Lock()
+	snapshot := slices.Clone(historyStore)
+	historyMu.Unlock()
+
+	var toWrite strings.Builder
+	for _, item := range snapshot {
+		fmt.Fprintf(&toWrite, "%s\n", item)
+	}
+
+	return os.WriteFile(replaceTilde(filepath), []byte(toWrite.String()), 0o644)
 }
 
 func handleInputString(argString string) []string {
@@ -419,7 +431,7 @@ func handleHistory(rawArgs []string, outWriter io.Writer) {
 	args, r := splitRedirects(rawArgs)
 
 	if len(args) == 0 {
-		printHistory(math.MaxInt32, r, outWriter)
+		printHistory(-1, r, outWriter)
 		return
 	}
 
@@ -428,7 +440,22 @@ func handleHistory(rawArgs []string, outWriter io.Writer) {
 	switch flag {
 	case "-r":
 		{
+			if len(args) < 2 {
+				fmt.Fprintf(os.Stderr, "No proper args provided.\n")
+				return
+			}
 			loadHistory(args[1])
+		}
+	case "-w":
+		{
+			if len(args) < 2 {
+				fmt.Fprintf(os.Stderr, "No proper args provided.\n")
+				return
+			}
+
+			if err := writeHistory(args[1]); err != nil {
+				fmt.Fprintf(os.Stderr, "history: %s\n", err)
+			}
 		}
 	default:
 		{
