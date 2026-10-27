@@ -233,6 +233,20 @@ func appendHistory(filepath string) error {
 	return err
 }
 
+func validateDeclareName(name string) bool {
+	if name[0] != '_' && !unicode.IsLetter(rune(name[0])) {
+		return false
+	}
+
+	for _, c := range name[1:] {
+		if c != '_' && !(unicode.IsLetter(rune(c)) || unicode.IsDigit(rune(c))) {
+			return false
+		}
+	}
+
+	return true
+}
+
 func handleInputString(argString string) []string {
 	var escapeInsideDoubleQuotes = []byte{'"', '\\', '$', '`', '\n'}
 	var args []string
@@ -536,13 +550,12 @@ func handleDeclare(rawArgs []string, outWriter io.Writer) {
 		}
 	default:
 		{
-			firstChar := args[0][0]
-			if firstChar == '_' || unicode.IsLetter(rune(firstChar)) {
-				key, val, found := strings.Cut(args[0], "=")
-				if !found {
-					return
-				}
 
+			key, val, found := strings.Cut(args[0], "=")
+			if !found {
+				return
+			}
+			if validateDeclareName(key) {
 				declareStore[key] = val
 				return
 			}
