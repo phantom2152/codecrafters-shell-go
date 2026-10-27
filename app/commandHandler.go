@@ -237,8 +237,33 @@ func handleComplete(rawArgs []string) {
 		return
 	}
 
-	_ = args[0]
-	cmd := args[1]
+	flag := args[0]
 
-	finish("", fmt.Sprintf("complete: %s: no completion specification\n", cmd), r)
+	var errStr, printStr string
+	switch flag {
+	case "-C":
+		{
+			if len(args) < 3 {
+				fmt.Fprintf(os.Stderr, "No proper args provided.\n")
+				return
+			}
+			completeMap[args[2]] = args[1]
+		}
+	case "-p":
+		{
+			if len(args) < 2 {
+				fmt.Fprintf(os.Stderr, "No proper args provided.\n")
+				return
+			}
+			cPath, exists := completeMap[args[1]]
+			if exists {
+				printStr = fmt.Sprintf("complete -C '%s' %s\n", cPath, args[1])
+			} else {
+				errStr = fmt.Sprintf("complete: %s: no completion specification\n", args[1])
+			}
+		}
+	default:
+		fmt.Fprintf(os.Stderr, "No proper flags provided.\n")
+	}
+	finish(printStr, errStr, r)
 }

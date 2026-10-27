@@ -9,10 +9,11 @@ import (
 )
 
 var shellBuiltIn = []string{"echo", "exit", "type", "pwd", "cd", "complete"}
+var completeMap map[string]string
 var processDir string
 
 func main() {
-
+	completeMap = make(map[string]string)
 	rl, err := readline.NewEx(&readline.Config{
 		Prompt:       "$ ",
 		AutoComplete: &builtinCompleter{names: shellBuiltIn},
