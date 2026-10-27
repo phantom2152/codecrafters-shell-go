@@ -16,6 +16,10 @@ type builtinCompleter struct {
 
 func (c *builtinCompleter) Do(line []rune, pos int) ([][]rune, int) {
 	text := string(line[:pos])
+	compLine := string(line)
+	compPoint := fmt.Sprintf("%d", len(text))
+
+	_ = append(os.Environ(), "COMP_LINE="+compLine, "COMP_POINT="+compPoint)
 
 	lastSpaceIdx := strings.LastIndex(text, " ")
 	isCommand := lastSpaceIdx == -1
