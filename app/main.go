@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 
@@ -13,6 +14,8 @@ import (
 var shellBuiltIn = []string{"echo", "exit", "type", "pwd", "cd", "complete", "jobs"}
 var completeMap map[string]string
 var processDir string
+var shellOut io.Writer = os.Stdout
+var shellErr io.Writer = os.Stderr
 
 type job struct {
 	number  int
@@ -22,8 +25,32 @@ type job struct {
 }
 
 var jobs []job
-var nextJobNumber = 1
 var jobsMu sync.Mutex
+
+func runCommand(commandArgs []string, background bool) bool {
+	command := commandArgs[0]
+	args := commandArgs[1:]
+
+	switch command {
+	case "exit":
+		return false
+	case "pwd":
+		handlePwd(args)
+	case "cd":
+		handleCd(args)
+	case "type":
+		handleType(args)
+	case "echo":
+		handleEcho(args)
+	case "complete":
+		handleComplete(args)
+	case "jobs":
+		handleJobs(args)
+	default:
+		handleSystemCmd(commandArgs, background)
+	}
+	return true
+}
 
 func main() {
 	completeMap = make(map[string]string)
@@ -60,27 +87,13 @@ mainLoop:
 			backGroundTask = true
 		}
 
-		command := commandArgs[0]
-		args := commandArgs[1:]
-
-		switch command {
-		case "exit":
-			break mainLoop
-		case "pwd":
-			handlePwd(args)
-		case "cd":
-			handleCd(args)
-		case "type":
-			handleType(args)
-		case "echo":
-			handleEcho(args)
-		case "complete":
-			handleComplete(args)
-		case "jobs":
-			handleJobs(args)
-		default:
-			handleSystemCmd(commandArgs, backGroundTask)
+		if idx := slices.Index(commandArgs, "|"); idx != -1 {
+			// TODO handle pipes
+			continue mainLoop
 		}
 
+		if !runCommand(commandArgs, backGroundTask) {
+			break mainLoop
+		}
 	}
 }

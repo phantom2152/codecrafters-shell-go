@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -60,7 +61,7 @@ func splitRedirects(args []string) ([]string, redirects) {
 	return rest, r
 }
 
-func emit(content string, t target, fallback *os.File) {
+func emit(content string, t target, fallback io.Writer) {
 	if t.file == "" {
 		fmt.Fprint(fallback, content)
 		return
@@ -83,8 +84,8 @@ func emit(content string, t target, fallback *os.File) {
 }
 
 func finish(stdout, stderr string, r redirects) {
-	emit(stdout, r.stdout, os.Stdout)
-	emit(stderr, r.stderr, os.Stderr)
+	emit(stdout, r.stdout, shellOut)
+	emit(stderr, r.stderr, shellErr)
 }
 
 func changeDir(changePath string) error {
