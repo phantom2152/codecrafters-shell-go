@@ -54,6 +54,13 @@ func initSys() {
 	}
 }
 
+func exitSys() {
+	hFilePath := os.Getenv("HISTFILE")
+	if hFilePath != "" {
+		writeHistory(hFilePath)
+	}
+}
+
 func runCommand(commandArgs []string, background bool, stdin io.Reader, outWriter io.Writer) bool {
 	command := commandArgs[0]
 	args := commandArgs[1:]
@@ -158,6 +165,7 @@ mainLoop:
 
 		pipelineDone.Wait()
 		if shouldBreak {
+			exitSys()
 			break mainLoop
 		}
 	}
