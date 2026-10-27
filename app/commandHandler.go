@@ -376,17 +376,11 @@ func handleJobs(rawArgs []string, outWriter io.Writer) {
 
 func handleHistory(rawArgs []string, outWriter io.Writer) {
 	args, r := splitRedirects(rawArgs)
-	if len(args) == 0 {
-		fmt.Fprintf(os.Stderr, "No proper args provided.\n")
-		return
+	lastNToPrint := len(historyStore)
+	if len(args) > 0 {
+		lastNToPrint, _ = strconv.Atoi(args[0])
 	}
 	var toPrint strings.Builder
-	lastNToPrint, err := strconv.Atoi(args[0])
-
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "No proper args provided.\n")
-		return
-	}
 
 	if lastNToPrint > len(historyStore) {
 		lastNToPrint = len(historyStore)
