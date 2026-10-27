@@ -314,16 +314,26 @@ func handleComplete(rawArgs []string) {
 
 func handleJobs(rawArgs []string) {
 	_, r := splitRedirects(rawArgs)
-	marker := ""
-	for idx, j := range jobs {
-		status := "Running"
-		if idx == len(jobs)-1 {
+	jobsMu.Lock()
+	snapshot := slices.Clone(jobs)
+	jobsMu.Unlock()
+
+	var out strings.Builder
+	for idx, j := range snapshot {
+		marker := " "
+		switch idx {
+		case len(snapshot) - 1:
 			marker = "+"
+		case len(snapshot) - 2:
+			marker = "-"
 		}
+
+		status := "Running"
 		if j.done {
 			status = "Done"
 		}
-		toPrint := fmt.Sprintf("[%d]%-3s%-24s%s\n", j.number, marker, status, j.command)
-		finish(toPrint, "", r)
+
+		fmt.Fprintf(&out, "[%d]%s  %-24s%s\n", j.number, marker, status, j.command)
 	}
+	finish(out.String(), "", r)
 }
