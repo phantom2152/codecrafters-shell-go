@@ -79,6 +79,7 @@ func runCommand(commandArgs []string, background bool, stdin io.Reader, outWrite
 
 func main() {
 	completeMap = make(map[string]string)
+	writeHistory(os.Getenv("HISTFILE"))
 	rl, err := readline.NewEx(&readline.Config{
 		Prompt:       "$ ",
 		AutoComplete: &builtinCompleter{names: shellBuiltIn},
