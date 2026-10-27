@@ -82,6 +82,8 @@ func runCommand(commandArgs []string, background bool, stdin io.Reader, outWrite
 		handleJobs(args, outWriter)
 	case "history":
 		handleHistory(args, outWriter)
+	case "declare":
+		handleDeclare(args, outWriter)
 	default:
 		handleSystemCmd(commandArgs, background, stdin, outWriter)
 	}

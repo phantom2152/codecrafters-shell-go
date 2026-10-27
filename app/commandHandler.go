@@ -508,3 +508,23 @@ func handleHistory(rawArgs []string, outWriter io.Writer) {
 	}
 
 }
+
+func handleDeclare(rawArgs []string, outWriter io.Writer) {
+	args, r := splitRedirects(rawArgs)
+
+	if len(args) < 2 {
+		fmt.Fprintf(os.Stderr, "No proper args provided.\n")
+		return
+	}
+
+	flag := args[0]
+
+	switch flag {
+	case "-p":
+		{
+			toPrint := fmt.Sprintf("declare: %s: not found\n", args[1])
+			finish("", toPrint, r, outWriter)
+		}
+	}
+
+}
