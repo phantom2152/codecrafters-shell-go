@@ -276,3 +276,7 @@ func handleComplete(rawArgs []string) {
 	}
 	finish(printStr, errStr, r)
 }
+
+func handleJobs(rawArgs []string) {
+
+}

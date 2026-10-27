@@ -8,7 +8,7 @@ import (
 	"github.com/chzyer/readline"
 )
 
-var shellBuiltIn = []string{"echo", "exit", "type", "pwd", "cd", "complete"}
+var shellBuiltIn = []string{"echo", "exit", "type", "pwd", "cd", "complete", "jobs"}
 var completeMap map[string]string
 var processDir string
 
@@ -54,6 +54,8 @@ mainLoop:
 			handleEcho(args)
 		case "complete":
 			handleComplete(args)
+		case "jobs":
+			handleJobs(args)
 		default:
 			handleSystemCmd(commandArgs)
 		}
