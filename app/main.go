@@ -8,7 +8,7 @@ import (
 	"github.com/chzyer/readline"
 )
 
-var shellBuiltIn = []string{"echo", "exit", "type", "pwd", "cd"}
+var shellBuiltIn = []string{"echo", "exit", "type", "pwd", "cd", "complete"}
 var processDir string
 
 func main() {
