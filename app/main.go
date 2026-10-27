@@ -11,7 +11,8 @@ import (
 )
 
 var shellBuiltIn = []string{"echo", "exit", "type", "pwd", "cd", "complete", "jobs", "history", "declare"}
-var completeMap map[string]string
+var completeStore map[string]string
+var declareStore map[string]string
 var processDir string
 var historyStore []string
 var historyLastAppendedIdx = 0
@@ -47,7 +48,8 @@ func splitPipes(args []string) [][]string {
 }
 
 func initSys() {
-	completeMap = make(map[string]string)
+	completeStore = make(map[string]string)
+	declareStore = make(map[string]string)
 	hFilePath := os.Getenv("HISTFILE")
 	if hFilePath != "" {
 		loadHistory(hFilePath)

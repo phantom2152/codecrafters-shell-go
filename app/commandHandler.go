@@ -420,7 +420,7 @@ func handleComplete(rawArgs []string, outWriter io.Writer) {
 				fmt.Fprintf(os.Stderr, "No proper args provided.\n")
 				return
 			}
-			completeMap[args[2]] = args[1]
+			completeStore[args[2]] = args[1]
 		}
 	case "-p":
 		{
@@ -428,7 +428,7 @@ func handleComplete(rawArgs []string, outWriter io.Writer) {
 				fmt.Fprintf(os.Stderr, "No proper args provided.\n")
 				return
 			}
-			cPath, exists := completeMap[args[1]]
+			cPath, exists := completeStore[args[1]]
 			if exists {
 				printStr = fmt.Sprintf("complete -C '%s' %s\n", cPath, args[1])
 			} else {
@@ -441,7 +441,7 @@ func handleComplete(rawArgs []string, outWriter io.Writer) {
 				fmt.Fprintf(os.Stderr, "No proper args provided.\n")
 				return
 			}
-			delete(completeMap, args[1])
+			delete(completeStore, args[1])
 
 		}
 	default:
@@ -512,19 +512,37 @@ func handleHistory(rawArgs []string, outWriter io.Writer) {
 func handleDeclare(rawArgs []string, outWriter io.Writer) {
 	args, r := splitRedirects(rawArgs)
 
-	if len(args) < 2 {
+	if len(args) < 1 {
 		fmt.Fprintf(os.Stderr, "No proper args provided.\n")
 		return
 	}
 
 	flag := args[0]
-
+	var errStr, printStr string
 	switch flag {
 	case "-p":
 		{
-			toPrint := fmt.Sprintf("declare: %s: not found\n", args[1])
-			finish("", toPrint, r, outWriter)
+			if len(args) < 2 {
+				fmt.Fprintf(os.Stderr, "No proper args provided.\n")
+				return
+			}
+			val, exists := declareStore[args[1]]
+			if exists {
+				printStr = fmt.Sprintf("declare -- %s=\"%s\"\n", args[1], val)
+			} else {
+				errStr = fmt.Sprintf("declare: %s: not found\n", args[1])
+			}
 		}
-	}
+	default:
+		{
+			key, val, found := strings.Cut(args[0], "=")
+			if !found {
+				return
+			}
 
+			declareStore[key] = val
+		}
+
+	}
+	finish(printStr, errStr, r, outWriter)
 }

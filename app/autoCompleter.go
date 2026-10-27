@@ -36,7 +36,7 @@ func (c *builtinCompleter) Do(line []rune, pos int) ([][]rune, int) {
 		handlePathCommandCompletion(*c, prefix, &matches)
 	} else {
 		commandName := strings.Split(text, " ")[0]
-		if scriptPath, exists := completeMap[commandName]; exists {
+		if scriptPath, exists := completeStore[commandName]; exists {
 			handleCustomCompletion(scriptPath, commandName, prefix, text, compLine, compPoint, &matches)
 		} else {
 			handleFilesFolderCompletion(prefix, &matches)
