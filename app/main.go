@@ -14,6 +14,7 @@ var shellBuiltIn = []string{"echo", "exit", "type", "pwd", "cd", "complete", "jo
 var completeMap map[string]string
 var processDir string
 var historyStore []string
+var historyLastAppendedIdx = 0
 
 type job struct {
 	number  int

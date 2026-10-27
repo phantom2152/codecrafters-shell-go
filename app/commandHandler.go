@@ -188,6 +188,7 @@ func loadHistory(filepath string) {
 
 	historyMu.Lock()
 	historyStore = append(historyStore, lines...)
+	historyLastAppendedIdx = len(historyStore)
 	historyMu.Unlock()
 }
 
@@ -201,7 +202,34 @@ func writeHistory(filepath string) error {
 		fmt.Fprintf(&toWrite, "%s\n", item)
 	}
 
-	return os.WriteFile(replaceTilde(filepath), []byte(toWrite.String()), 0o644)
+	err := os.WriteFile(replaceTilde(filepath), []byte(toWrite.String()), 0o644)
+
+	historyMu.Lock()
+	historyLastAppendedIdx = len(historyStore)
+	historyMu.Unlock()
+	return err
+}
+
+func appendHistory(filepath string) error {
+	historyMu.Lock()
+	snapshot := slices.Clone(historyStore[historyLastAppendedIdx:])
+	historyMu.Unlock()
+
+	file, _ := os.OpenFile(filepath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+
+	defer file.Close()
+
+	var toAppend strings.Builder
+	for _, item := range snapshot {
+		fmt.Fprintf(&toAppend, "%s\n", item)
+	}
+	_, err := file.WriteString(toAppend.String())
+
+	historyMu.Lock()
+	historyLastAppendedIdx = len(historyStore)
+	historyMu.Unlock()
+
+	return err
 }
 
 func handleInputString(argString string) []string {
@@ -454,6 +482,17 @@ func handleHistory(rawArgs []string, outWriter io.Writer) {
 			}
 
 			if err := writeHistory(args[1]); err != nil {
+				fmt.Fprintf(os.Stderr, "history: %s\n", err)
+			}
+		}
+	case "-a":
+		{
+			if len(args) < 2 {
+				fmt.Fprintf(os.Stderr, "No proper args provided.\n")
+				return
+			}
+
+			if err := appendHistory(args[1]); err != nil {
 				fmt.Fprintf(os.Stderr, "history: %s\n", err)
 			}
 		}
