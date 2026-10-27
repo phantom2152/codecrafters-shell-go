@@ -4,6 +4,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/chzyer/readline"
 )
@@ -11,6 +12,17 @@ import (
 var shellBuiltIn = []string{"echo", "exit", "type", "pwd", "cd", "complete", "jobs"}
 var completeMap map[string]string
 var processDir string
+
+type job struct {
+	number  int
+	pid     int
+	command string
+	done    bool
+}
+
+var jobs []job
+var nextJobNumber = 1
+var jobsMu sync.Mutex
 
 func main() {
 	completeMap = make(map[string]string)
@@ -26,6 +38,7 @@ func main() {
 
 mainLoop:
 	for {
+		backGroundTask := false
 		text, err := rl.Readline()
 		if err == readline.ErrInterrupt {
 			continue
@@ -35,9 +48,16 @@ mainLoop:
 		}
 		text = strings.TrimSuffix(text, "\n")
 		commandArgs := handleInputString(text)
+
 		if len(commandArgs) == 0 {
 			continue mainLoop
 		}
+
+		if len(commandArgs) > 1 && commandArgs[len(commandArgs)-1] == "&" {
+			commandArgs = commandArgs[:len(commandArgs)-1]
+			backGroundTask = true
+		}
+
 		command := commandArgs[0]
 		args := commandArgs[1:]
 
@@ -57,7 +77,7 @@ mainLoop:
 		case "jobs":
 			handleJobs(args)
 		default:
-			handleSystemCmd(commandArgs)
+			handleSystemCmd(commandArgs, backGroundTask)
 		}
 
 	}

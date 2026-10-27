@@ -154,7 +154,7 @@ func handleInputString(argString string) []string {
 	return args
 }
 
-func handleSystemCmd(rawArgs []string) {
+func handleSystemCmd(rawArgs []string, backGroundTask bool) {
 
 	args, r := splitRedirects(rawArgs)
 	if len(args) == 0 {
@@ -168,18 +168,53 @@ func handleSystemCmd(rawArgs []string) {
 		return
 	}
 
-	var stdout, stderr bytes.Buffer
 	cmd := exec.Command(cmdToRun, args[1:]...)
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		var exitErr *exec.ExitError
-		if !errors.As(err, &exitErr) {
-			fmt.Fprintf(os.Stderr, "%s: %s\n", cmdToRun, err)
+	if !backGroundTask {
+		var stdout, stderr bytes.Buffer
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
+		if err := cmd.Run(); err != nil {
+			var exitErr *exec.ExitError
+			if !errors.As(err, &exitErr) {
+				fmt.Fprintf(os.Stderr, "%s: %s\n", cmdToRun, err)
+			}
 		}
-	}
 
-	finish(stdout.String(), stderr.String(), r)
+		finish(stdout.String(), stderr.String(), r)
+	} else {
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+
+		if err := cmd.Start(); err != nil {
+			fmt.Fprintf(os.Stderr, "%s: %s\n", cmdToRun, err)
+			return
+		}
+
+		pid := cmd.Process.Pid
+
+		jobsMu.Lock()
+		number := nextJobNumber
+		nextJobNumber++
+		jobs = append(jobs, job{
+			number:  number,
+			pid:     pid,
+			command: strings.Join(args, " ") + " &",
+		})
+		jobsMu.Unlock()
+
+		fmt.Printf("[%d] %d\n", number, pid)
+
+		go func() {
+			cmd.Wait()
+			jobsMu.Lock()
+			for i := range jobs {
+				if jobs[i].number == number {
+					jobs[i].done = true
+				}
+			}
+			jobsMu.Unlock()
+		}()
+	}
 }
 
 func handleCd(rawArgs []string) {
