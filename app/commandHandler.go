@@ -12,7 +12,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"unicode"
 )
 
 type target struct {
@@ -233,17 +232,22 @@ func appendHistory(filepath string) error {
 	return err
 }
 
+func isVarChar(c byte, first bool) bool {
+	if c == '_' || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') {
+		return true
+	}
+	return !first && c >= '0' && c <= '9'
+}
+
 func validateDeclareName(name string) bool {
-	if name[0] != '_' && !unicode.IsLetter(rune(name[0])) {
+	if name == "" {
 		return false
 	}
-
-	for _, c := range name[1:] {
-		if c != '_' && !(unicode.IsLetter(rune(c)) || unicode.IsDigit(rune(c))) {
+	for i := 0; i < len(name); i++ {
+		if !isVarChar(name[i], i == 0) {
 			return false
 		}
 	}
-
 	return true
 }
 
@@ -290,6 +294,26 @@ func handleInputString(argString string) []string {
 				tokenStarted = false
 			}
 			continue
+		}
+
+		if ch == '$' && (!isInsideSingleQuote) {
+			j := i + 1
+
+			for j < len(argString) && isVarChar(argString[j], j == i+1) {
+				j++
+			}
+
+			if j > i+1 {
+				name := argString[i+1 : j]
+				if val, found := declareStore[name]; found {
+					toAppend.WriteString(val)
+				} else {
+					toAppend.WriteString(os.Getenv(name))
+				}
+				tokenStarted = true
+				i = j - 1
+				continue
+			}
 		}
 
 		toAppend.WriteByte(ch)
