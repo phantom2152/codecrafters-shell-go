@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -39,6 +40,7 @@ func main() {
 mainLoop:
 	for {
 		backGroundTask := false
+		fmt.Print(reapJobs(true))
 		text, err := rl.Readline()
 		if err == readline.ErrInterrupt {
 			continue

@@ -98,6 +98,49 @@ func changeDir(changePath string) error {
 	return err
 }
 
+func reapJobs(onlyDone bool) string {
+	jobsMu.Lock()
+	snapshot := slices.Clone(jobs)
+	jobsMu.Unlock()
+
+	var out strings.Builder
+	var finished []int
+
+	for idx, j := range snapshot {
+		if j.done {
+			finished = append(finished, j.number)
+		}
+		if onlyDone && !j.done {
+			continue
+		}
+
+		marker := " "
+		switch idx {
+		case len(snapshot) - 1:
+			marker = "+"
+		case len(snapshot) - 2:
+			marker = "-"
+		}
+
+		status := "Running"
+		command := j.command
+		if j.done {
+			status = "Done"
+			command = strings.TrimSuffix(command, " &")
+		}
+
+		fmt.Fprintf(&out, "[%d]%s  %-24s%s\n", j.number, marker, status, command)
+	}
+
+	jobsMu.Lock()
+	jobs = slices.DeleteFunc(jobs, func(j job) bool {
+		return slices.Contains(finished, j.number)
+	})
+	jobsMu.Unlock()
+
+	return out.String()
+}
+
 func handleInputString(argString string) []string {
 	var escapeInsideDoubleQuotes = []byte{'"', '\\', '$', '`', '\n'}
 	var args []string
@@ -314,35 +357,5 @@ func handleComplete(rawArgs []string) {
 
 func handleJobs(rawArgs []string) {
 	_, r := splitRedirects(rawArgs)
-	jobsMu.Lock()
-	snapshot := slices.Clone(jobs)
-	jobsMu.Unlock()
-	var finished []int
-
-	var out strings.Builder
-	for idx, j := range snapshot {
-		marker := " "
-		switch idx {
-		case len(snapshot) - 1:
-			marker = "+"
-		case len(snapshot) - 2:
-			marker = "-"
-		}
-
-		status := "Running"
-		cmd := j.command
-		if j.done {
-			status = "Done"
-			cmd = strings.TrimSuffix(cmd, " &")
-			finished = append(finished, j.number)
-		}
-
-		fmt.Fprintf(&out, "[%d]%s  %-24s%s\n", j.number, marker, status, cmd)
-	}
-	finish(out.String(), "", r)
-	jobsMu.Lock()
-	jobs = slices.DeleteFunc(jobs, func(j job) bool {
-		return slices.Contains(finished, j.number)
-	})
-	jobsMu.Unlock()
+	finish(reapJobs(false), "", r)
 }
