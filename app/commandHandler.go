@@ -239,6 +239,13 @@ func isVarChar(c byte, first bool) bool {
 	return !first && c >= '0' && c <= '9'
 }
 
+func lookupVar(name string) string {
+	if val, found := declareStore[name]; found {
+		return val
+	}
+	return os.Getenv(name)
+}
+
 func validateDeclareName(name string) bool {
 	if name == "" {
 		return false
@@ -297,19 +304,25 @@ func handleInputString(argString string) []string {
 		}
 
 		if ch == '$' && (!isInsideSingleQuote) {
-			j := i + 1
+			if i+1 < len(argString) && argString[i+1] == '{' {
+				if end := strings.IndexByte(argString[i+2:], '}'); end != -1 {
+					name := argString[i+2 : i+2+end]
+					if validateDeclareName(name) {
+						toAppend.WriteString(lookupVar(name))
+						tokenStarted = true
+						i = i + 2 + end
+						continue
+					}
+				}
+			}
 
+			j := i + 1
 			for j < len(argString) && isVarChar(argString[j], j == i+1) {
 				j++
 			}
 
 			if j > i+1 {
-				name := argString[i+1 : j]
-				if val, found := declareStore[name]; found {
-					toAppend.WriteString(val)
-				} else {
-					toAppend.WriteString(os.Getenv(name))
-				}
+				toAppend.WriteString(lookupVar(argString[i+1 : j]))
 				tokenStarted = true
 				i = j - 1
 				continue
