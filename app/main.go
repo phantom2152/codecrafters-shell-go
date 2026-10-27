@@ -51,6 +51,8 @@ mainLoop:
 			handleType(args)
 		case "echo":
 			handleEcho(args)
+		case "complete":
+			handleComplete(args)
 		default:
 			handleSystemCmd(commandArgs)
 		}

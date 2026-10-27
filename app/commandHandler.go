@@ -98,34 +98,6 @@ func changeDir(changePath string) error {
 	return err
 }
 
-func handleSystemCmd(rawArgs []string) {
-
-	args, r := splitRedirects(rawArgs)
-	if len(args) == 0 {
-		return
-	}
-
-	cmdToRun := args[0]
-
-	if _, err := exec.LookPath(cmdToRun); err != nil {
-		finish("", fmt.Sprintf("%s: command not found\n", cmdToRun), r)
-		return
-	}
-
-	var stdout, stderr bytes.Buffer
-	cmd := exec.Command(cmdToRun, args[1:]...)
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		var exitErr *exec.ExitError
-		if !errors.As(err, &exitErr) {
-			fmt.Fprintf(os.Stderr, "%s: %s\n", cmdToRun, err)
-		}
-	}
-
-	finish(stdout.String(), stderr.String(), r)
-}
-
 func handleInputString(argString string) []string {
 	var escapeInsideDoubleQuotes = []byte{'"', '\\', '$', '`', '\n'}
 	var args []string
@@ -182,6 +154,34 @@ func handleInputString(argString string) []string {
 	return args
 }
 
+func handleSystemCmd(rawArgs []string) {
+
+	args, r := splitRedirects(rawArgs)
+	if len(args) == 0 {
+		return
+	}
+
+	cmdToRun := args[0]
+
+	if _, err := exec.LookPath(cmdToRun); err != nil {
+		finish("", fmt.Sprintf("%s: command not found\n", cmdToRun), r)
+		return
+	}
+
+	var stdout, stderr bytes.Buffer
+	cmd := exec.Command(cmdToRun, args[1:]...)
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		var exitErr *exec.ExitError
+		if !errors.As(err, &exitErr) {
+			fmt.Fprintf(os.Stderr, "%s: %s\n", cmdToRun, err)
+		}
+	}
+
+	finish(stdout.String(), stderr.String(), r)
+}
+
 func handleCd(rawArgs []string) {
 	args, r := splitRedirects(rawArgs)
 
@@ -227,4 +227,18 @@ func handleEcho(rawArgs []string) {
 func handlePwd(rawArgs []string) {
 	_, r := splitRedirects(rawArgs)
 	finish(processDir+"\n", "", r)
+}
+
+func handleComplete(rawArgs []string) {
+	args, r := splitRedirects(rawArgs)
+
+	if len(args) < 2 {
+		fmt.Fprintf(os.Stderr, "No proper args provided.\n")
+		return
+	}
+
+	_ = args[0]
+	cmd := args[1]
+
+	finish("", fmt.Sprintf("complete: %s: no completion specification\n", cmd), r)
 }
