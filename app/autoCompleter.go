@@ -97,7 +97,11 @@ func (c *builtinCompleter) Do(line []rune, pos int) ([][]rune, int) {
 
 	if len(names) == 1 {
 		c.lastPrefix = ""
-		return [][]rune{[]rune(names[0][len(prefix):] + " ")}, len(prefix)
+		appendChar := " "
+		if strings.HasSuffix(names[0], string(filepath.Separator)) {
+			appendChar = ""
+		}
+		return [][]rune{[]rune(names[0][len(prefix):] + appendChar)}, len(prefix)
 	}
 
 	if len(lcp) > len(prefix) {
