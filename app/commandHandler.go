@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -149,6 +151,45 @@ func reapJobs(onlyDone bool) string {
 	jobsMu.Unlock()
 
 	return out.String()
+}
+
+func printHistory(lastNToPrint int, r redirects, outWriter io.Writer) {
+	jobsMu.Lock()
+	snapshot := slices.Clone(historyStore)
+	jobsMu.Unlock()
+	var toPrint strings.Builder
+
+	if lastNToPrint > len(snapshot) {
+		lastNToPrint = len(snapshot)
+	}
+
+	for idx, item := range snapshot[len(snapshot)-lastNToPrint:] {
+		fmt.Fprintf(&toPrint, "%5d  %s\n", len(snapshot)-lastNToPrint+idx+1, item)
+	}
+
+	finish(toPrint.String(), "", r, outWriter)
+}
+
+func loadHistory(filepath string) {
+	file, _ := os.Open(filepath)
+	defer file.Close()
+	scanner := bufio.NewScanner(file)
+
+	var lines []string
+	for scanner.Scan() {
+		if strings.TrimSpace(scanner.Text()) != "" {
+			lines = append(lines, scanner.Text())
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error While scanning\n")
+		return
+	}
+
+	jobsMu.Lock()
+	historyStore = append(historyStore, lines...)
+	jobsMu.Unlock()
 }
 
 func handleInputString(argString string) []string {
@@ -376,19 +417,28 @@ func handleJobs(rawArgs []string, outWriter io.Writer) {
 
 func handleHistory(rawArgs []string, outWriter io.Writer) {
 	args, r := splitRedirects(rawArgs)
-	lastNToPrint := len(historyStore)
-	if len(args) > 0 {
-		lastNToPrint, _ = strconv.Atoi(args[0])
-	}
-	var toPrint strings.Builder
 
-	if lastNToPrint > len(historyStore) {
-		lastNToPrint = len(historyStore)
+	if len(args) == 0 {
+		printHistory(math.MaxInt32, r, outWriter)
+		return
 	}
 
-	for idx, item := range historyStore[len(historyStore)-lastNToPrint:] {
-		fmt.Fprintf(&toPrint, "%5d  %s\n", len(historyStore)-lastNToPrint+idx+1, item)
+	flag := args[0]
+
+	switch flag {
+	case "-r":
+		{
+			loadHistory(args[1])
+		}
+	default:
+		{
+			linesToPrint, err := strconv.Atoi(args[0])
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "No proper args provided.\n")
+				return
+			}
+			printHistory(linesToPrint, r, outWriter)
+		}
 	}
 
-	finish(toPrint.String(), "", r, outWriter)
 }
