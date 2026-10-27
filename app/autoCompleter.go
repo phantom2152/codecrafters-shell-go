@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -29,56 +30,13 @@ func (c *builtinCompleter) Do(line []rune, pos int) ([][]rune, int) {
 	matches := NewSet[string]()
 
 	if isCommand {
-		for _, name := range c.names {
-			if strings.HasPrefix(name, prefix) {
-				matches.Add(name)
-			}
-		}
-
-		for _, dir := range filepath.SplitList(os.Getenv("PATH")) {
-			if dir == "" {
-				dir = "."
-			}
-
-			entries, err := os.ReadDir(dir)
-			if err != nil {
-				continue
-			}
-
-			for _, entry := range entries {
-				name := entry.Name()
-				if !strings.HasPrefix(name, prefix) {
-					continue
-				}
-
-				info, err := os.Stat(filepath.Join(dir, name))
-				if err != nil || info.IsDir() || info.Mode()&0o111 == 0 {
-					continue
-				}
-
-				matches.Add(name)
-			}
-		}
+		handlePathCommandCompletion(c, prefix, &matches)
 	} else {
-		dir, base := filepath.Split(prefix)
-		searchDir := dir
-		if searchDir == "" {
-			searchDir = "."
-		}
-		searchDir = replaceTilde(searchDir)
-
-		entries, err := os.ReadDir(searchDir)
-		if err == nil {
-			for _, entry := range entries {
-				if strings.HasPrefix(entry.Name(), base) {
-					name := entry.Name()
-					if entry.IsDir() {
-						name += string(filepath.Separator)
-					}
-					fullMatch := dir + name
-					matches.Add(fullMatch)
-				}
-			}
+		commandName := strings.Split(text, " ")[0]
+		if scriptPath, exists := completeMap[commandName]; exists {
+			handleCustomCompletion(scriptPath, commandName, prefix, text, &matches)
+		} else {
+			handleFilesFolderCompletion(prefix, &matches)
 		}
 	}
 
@@ -136,4 +94,84 @@ func longestCommonPrefix(names []string) string {
 	}
 
 	return first[:i]
+}
+
+func handlePathCommandCompletion(c *builtinCompleter, prefix string, matches *Set[string]) {
+	for _, name := range c.names {
+		if strings.HasPrefix(name, prefix) {
+			matches.Add(name)
+		}
+	}
+
+	for _, dir := range filepath.SplitList(os.Getenv("PATH")) {
+		if dir == "" {
+			dir = "."
+		}
+
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			continue
+		}
+
+		for _, entry := range entries {
+			name := entry.Name()
+			if !strings.HasPrefix(name, prefix) {
+				continue
+			}
+
+			info, err := os.Stat(filepath.Join(dir, name))
+			if err != nil || info.IsDir() || info.Mode()&0o111 == 0 {
+				continue
+			}
+
+			matches.Add(name)
+		}
+	}
+}
+
+func handleFilesFolderCompletion(prefix string, matches *Set[string]) {
+	dir, base := filepath.Split(prefix)
+	searchDir := dir
+	if searchDir == "" {
+		searchDir = "."
+	}
+	searchDir = replaceTilde(searchDir)
+
+	entries, err := os.ReadDir(searchDir)
+	if err == nil {
+		for _, entry := range entries {
+			if strings.HasPrefix(entry.Name(), base) {
+				name := entry.Name()
+				if entry.IsDir() {
+					name += string(filepath.Separator)
+				}
+				fullMatch := dir + name
+				matches.Add(fullMatch)
+			}
+		}
+	}
+}
+
+func handleCustomCompletion(scriptPath, commandName, currentWord, fullLine string, matches *Set[string]) {
+	words := strings.Fields(fullLine)
+	prevWord := ""
+
+	if len(words) >= 2 && !strings.HasSuffix(fullLine, " ") {
+		prevWord = words[len(words)-2]
+	} else if len(words) >= 1 && strings.HasSuffix(fullLine, " ") {
+		prevWord = words[len(words)-1]
+	}
+
+	cmd := exec.Command(scriptPath, commandName, currentWord, prevWord)
+	out, err := cmd.Output()
+	if err != nil {
+		return
+	}
+
+	for line := range strings.SplitSeq(string(out), "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			matches.Add(line)
+		}
+	}
 }
