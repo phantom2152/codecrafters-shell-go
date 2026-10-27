@@ -10,7 +10,7 @@ import (
 	"github.com/chzyer/readline"
 )
 
-var shellBuiltIn = []string{"echo", "exit", "type", "pwd", "cd", "complete", "jobs", "history"}
+var shellBuiltIn = []string{"echo", "exit", "type", "pwd", "cd", "complete", "jobs", "history", "declare"}
 var completeMap map[string]string
 var processDir string
 var historyStore []string
