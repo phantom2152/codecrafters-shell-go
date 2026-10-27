@@ -308,8 +308,10 @@ func handleInputString(argString string) []string {
 				if end := strings.IndexByte(argString[i+2:], '}'); end != -1 {
 					name := argString[i+2 : i+2+end]
 					if validateDeclareName(name) {
-						toAppend.WriteString(lookupVar(name))
-						tokenStarted = true
+						if val := lookupVar(name); val != "" {
+							toAppend.WriteString(val)
+							tokenStarted = true
+						}
 						i = i + 2 + end
 						continue
 					}
@@ -322,8 +324,11 @@ func handleInputString(argString string) []string {
 			}
 
 			if j > i+1 {
-				toAppend.WriteString(lookupVar(argString[i+1 : j]))
-				tokenStarted = true
+				name := argString[i+1 : j]
+				if val := lookupVar(name); val != "" {
+					toAppend.WriteString(val)
+					tokenStarted = true
+				}
 				i = j - 1
 				continue
 			}
