@@ -262,6 +262,14 @@ func handleComplete(rawArgs []string) {
 				errStr = fmt.Sprintf("complete: %s: no completion specification\n", args[1])
 			}
 		}
+	case "-r":
+		{
+			if len(args) < 2 {
+				fmt.Fprintf(os.Stderr, "No proper args provided.\n")
+				return
+			}
+			delete(completeMap, args[1])
+		}
 	default:
 		fmt.Fprintf(os.Stderr, "No proper flags provided.\n")
 	}
