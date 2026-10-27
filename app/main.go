@@ -44,6 +44,10 @@ func splitPipes(args []string) [][]string {
 	return cmds
 }
 
+func addToHistory(cmd string) {
+	//TODO
+}
+
 func runCommand(commandArgs []string, background bool, stdin io.Reader, outWriter io.Writer) bool {
 	command := commandArgs[0]
 	args := commandArgs[1:]

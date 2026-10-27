@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -374,11 +375,25 @@ func handleJobs(rawArgs []string, outWriter io.Writer) {
 }
 
 func handleHistory(rawArgs []string, outWriter io.Writer) {
-	_, r := splitRedirects(rawArgs)
+	args, r := splitRedirects(rawArgs)
+	if len(args) == 0 {
+		fmt.Fprintf(os.Stderr, "No proper args provided.\n")
+		return
+	}
 	var toPrint strings.Builder
+	lastNToPrint, err := strconv.Atoi(args[0])
 
-	for idx, item := range historyStore {
-		fmt.Fprintf(&toPrint, "%5d  %s\n", idx+1, item)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "No proper args provided.\n")
+		return
+	}
+
+	if lastNToPrint > len(historyStore) {
+		lastNToPrint = len(historyStore)
+	}
+
+	for idx, item := range historyStore[len(historyStore)-lastNToPrint:] {
+		fmt.Fprintf(&toPrint, "%5d  %s\n", len(historyStore)-lastNToPrint+idx+1, item)
 	}
 
 	finish(toPrint.String(), "", r, outWriter)
